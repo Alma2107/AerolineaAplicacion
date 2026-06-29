@@ -42,6 +42,23 @@ Equipaje EquipajeDAO::rastrear(const std::string &codigoEtiqueta) const
     return Equipaje();
 }
 
+std::string EquipajeDAO::buscarPropietarioPorEtiqueta(const std::string &codigoEtiqueta) const
+{
+    auto filas = db.consultar(
+        "SELECT CONCAT(p.nombre,' ',p.apellido), p.tipo_documento, p.numero_documento, t.codigo_reserva_pnr "
+        "FROM ticket_equipajes te "
+        "JOIN tickets_detalle t ON te.id_ticket=t.id_ticket "
+        "JOIN pasajeros p ON t.id_pasajero=p.id_pasajero "
+        "WHERE te.codigo_etiqueta='" + ConexionDB::escapar(codigoEtiqueta) + "' LIMIT 1");
+    if (!filas.empty() && filas[0].size() >= 4)
+    {
+        std::stringstream propietario;
+        propietario << filas[0][0] << " (" << filas[0][1] << " " << filas[0][2] << ") - Reserva " << filas[0][3];
+        return propietario.str();
+    }
+    return std::string();
+}
+
 bool EquipajeDAO::actualizarEstado(const std::string &codigoEtiqueta, const std::string &estado)
 {
     std::stringstream sql;

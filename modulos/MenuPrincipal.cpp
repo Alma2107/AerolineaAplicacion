@@ -21,8 +21,7 @@ MenuPrincipal::MenuPrincipal()
 
 void MenuPrincipal::capturarTexto(std::string &texto, bool ocultar)
 {
-    std::string visible = ocultar ? std::string(texto.size(), '*') : texto;
-    DrawText(visible.c_str(), 455, ocultar ? 365 : 295, 22, DARKGRAY);
+    (void)ocultar;
     UI::capturarTexto(texto, 35);
 }
 
@@ -89,7 +88,7 @@ void MenuPrincipal::dibujarMenu()
     UI::tarjeta(Rectangle{250, 325, 365, 220}, "Operaciones de Vuelo",
                 {"Crear y gestionar vuelos", "Asignar aeronaves", "Verificar clima", "Cancelar o reprogramar vuelos"}, UI::blue());
     UI::tarjeta(Rectangle{640, 325, 365, 220}, "Atencion al Pasajero",
-                {"Check-in mediante QR", "Reservas presenciales", "Cancelar reserva y reembolso", "Notificaciones a pasajeros"}, UI::green());
+                {"Check-in por codigo de reserva", "Reservas presenciales", "Cancelar reserva y reembolso", "Notificaciones a pasajeros"}, UI::green());
     UI::tarjeta(Rectangle{250, 570, 365, 220}, "Equipaje",
                 {"Registrar equipaje", "Rastrear equipaje", "Equipaje perdido o danado", "Reclamos"}, UI::purple());
     UI::tarjeta(Rectangle{640, 570, 365, 220}, "Flota y Mantenimiento",
@@ -128,16 +127,21 @@ void MenuPrincipal::dibujarLogin()
     DrawText(nombreModulo(moduloSeleccionado).c_str(), 405, 170, 30, color);
     DrawText("Verificacion de seguridad", 405, 212, 19, UI::muted());
 
+    Rectangle usuarioRect = {450, 252, 350, 48};
+    Rectangle passwordRect = {450, 322, 350, 48};
+
     DrawText("Usuario", 405, 265, 18, UI::muted());
-    DrawRectangleLinesEx(Rectangle{450, 252, 350, 48}, escribiendoUsuario ? 2 : 1, escribiendoUsuario ? color : UI::border());
+    DrawRectangleRounded(usuarioRect, 0.05f, 8, WHITE);
+    DrawRectangleLinesEx(usuarioRect, escribiendoUsuario ? 2 : 1, escribiendoUsuario ? color : UI::border());
     DrawText("Password", 405, 335, 18, UI::muted());
-    DrawRectangleLinesEx(Rectangle{450, 322, 350, 48}, !escribiendoUsuario ? 2 : 1, !escribiendoUsuario ? color : UI::border());
+    DrawRectangleRounded(passwordRect, 0.05f, 8, WHITE);
+    DrawRectangleLinesEx(passwordRect, !escribiendoUsuario ? 2 : 1, !escribiendoUsuario ? color : UI::border());
 
     if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
     {
         Vector2 mouse = GetMousePosition();
-        escribiendoUsuario = CheckCollisionPointRec(mouse, Rectangle{450, 252, 350, 48});
-        if (CheckCollisionPointRec(mouse, Rectangle{450, 322, 350, 48}))
+        escribiendoUsuario = CheckCollisionPointRec(mouse, usuarioRect);
+        if (CheckCollisionPointRec(mouse, passwordRect))
             escribiendoUsuario = false;
     }
 
@@ -145,15 +149,12 @@ void MenuPrincipal::dibujarLogin()
         escribiendoUsuario = !escribiendoUsuario;
 
     if (escribiendoUsuario)
-    {
         capturarTexto(usuario, false);
-        DrawText(std::string(password.size(), '*').c_str(), 455, 365, 22, DARKGRAY);
-    }
     else
-    {
-        DrawText(usuario.c_str(), 455, 295, 22, DARKGRAY);
         capturarTexto(password, true);
-    }
+
+    UI::textoRecortado(usuario, (int)usuarioRect.x + 12, (int)usuarioRect.y + 14, 20, DARKGRAY, 28);
+    UI::textoRecortado(std::string(password.size(), '*'), (int)passwordRect.x + 12, (int)passwordRect.y + 14, 20, DARKGRAY, 28);
 
     if (UI::boton(Rectangle{450, 410, 160, 48}, "Ingresar", color) || IsKeyPressed(KEY_ENTER))
     {

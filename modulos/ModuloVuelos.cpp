@@ -241,7 +241,32 @@ ModuloVuelos::ModuloVuelos()
       fechaSalida("2026-09-01 08:30:00"), fechaLlegada("2026-09-01 23:45:00"), precio("95000"),
       idAvion("1"), estado("Programado"), accionIdVuelo("1"), accionIdAvion("2"),
       accionFechaSalida("2026-09-02 10:00:00"), accionFechaLlegada("2026-09-02 12:15:00"),
-      accionMotivo("clima"), climaIata("AEP"), filtroHistorial("") {}
+      accionMotivo("clima"), climaIata("AEP"), filtroHistorial(""), vistaAnterior(-1), notificacionesNoLeidas(0)
+{
+    refrescarDatos();
+}
+
+void ModuloVuelos::refrescarAvisos()
+{
+    notificacionesNoLeidas = notificacionDAO.contarNoLeidas(1);
+    notificacionesCache = notificacionDAO.listarPorModulo(1);
+}
+
+void ModuloVuelos::refrescarDatos()
+{
+    if (vista == 0 || vista == 1 || vista == 3 || vista == 4)
+    {
+        avionesCache = avionDAO.listar();
+        avionesDisponiblesCache = avionDAO.listarDisponibles();
+    }
+    if (vista == 2 && aeropuertosCache.empty())
+        aeropuertosCache = vueloDAO.listarAeropuertos();
+    if (vista == 5)
+        vuelosCache = vueloDAO.listar();
+
+    refrescarAvisos();
+    vistaAnterior = vista;
+}
 
 void ModuloVuelos::dibujarNavegacion()
 {
@@ -309,7 +334,7 @@ void ModuloVuelos::dibujarCrearVuelo()
 
     DrawText("Aeronaves disponibles", 240, 650, 20, UI::navy());
     int yDisponible = 682;
-    for (const Avion &avion : avionDAO.listarDisponibles())
+    for (const Avion &avion : avionesDisponiblesCache)
     {
         Rectangle item = {240, (float)yDisponible, 300, 30};
         bool elegido = std::to_string(avion.getId()) == idAvion;
@@ -327,7 +352,7 @@ void ModuloVuelos::dibujarCrearVuelo()
 
     DrawText("Bloqueadas por mantenimiento", 580, 650, 20, UI::navy());
     int yBloqueada = 682;
-    for (const Avion &avion : avionDAO.listar())
+    for (const Avion &avion : avionesCache)
     {
         if (avion.getEstado() == "Activo")
             continue;
@@ -355,6 +380,8 @@ void ModuloVuelos::dibujarCrearVuelo()
         {
             Vuelo guardado = vueloDAO.crear(vuelo);
             mensaje = guardado.getId() != 0 ? "Vuelo guardado en BD: " + guardado.getNumero() : "No se pudo guardar el vuelo.";
+            if (guardado.getId() != 0)
+                refrescarDatos();
         }
         else
         {
@@ -396,7 +423,7 @@ void ModuloVuelos::dibujarAcciones()
             mensaje = clima.ok ? "Clima actualizado en tiempo real para " + clima.iata + "." : "No se pudo consultar clima real: " + clima.detalleError;
         }
 
-        std::vector<std::string> codigos = vueloDAO.listarAeropuertos();
+        std::vector<std::string> codigos = aeropuertosCache;
         int chipX = 660;
         int chipY = 346;
         for (const std::string &codigo : codigos)
@@ -486,6 +513,7 @@ void ModuloVuelos::dibujarAcciones()
                 bool aviso = notificacionDAO.crear(2, "Reprogramacion", "El vuelo ID " + accionIdVuelo + " cambio a la aeronave " + accionIdAvion + ".");
                 if (!aviso)
                     mensaje += " No se pudo guardar aviso en BD: revise tabla notificaciones.";
+                refrescarDatos();
             }
         }
     }
@@ -504,6 +532,7 @@ void ModuloVuelos::dibujarAcciones()
                 bool aviso = notificacionDAO.crear(2, "Cancelacion", "El vuelo ID " + accionIdVuelo + " fue cancelado por " + accionMotivo + ". Informar pasajeros afectados.");
                 if (!aviso)
                     mensaje = "Vuelo cancelado en BD. No se pudo guardar aviso en BD: revise tabla notificaciones.";
+                refrescarDatos();
             }
         }
     }
@@ -526,6 +555,7 @@ void ModuloVuelos::dibujarAcciones()
                 bool aviso = notificacionDAO.crear(2, "Reprogramacion", "El vuelo ID " + accionIdVuelo + " cambio de fecha u horario.");
                 if (!aviso)
                     mensaje = "Vuelo reprogramado en BD. No se pudo guardar aviso en BD: revise tabla notificaciones.";
+                refrescarDatos();
             }
         }
     }
@@ -535,10 +565,9 @@ void ModuloVuelos::dibujarAcciones()
 
 void ModuloVuelos::dibujarNotificaciones()
 {
-    auto notificaciones = notificacionDAO.listarPorModulo(1);
     DrawText("Avisos de mantenimiento", 1010, 95, 22, UI::navy());
     int y = 132;
-    for (const Notificacion &notificacion : notificaciones)
+    for (const Notificacion &notificacion : notificacionesCache)
     {
         UI::aviso(Rectangle{1010, (float)y, 330, 78}, notificacion.getTipo(), notificacion.getMensaje(), UI::orange());
         y += 90;
@@ -547,7 +576,7 @@ void ModuloVuelos::dibujarNotificaciones()
     int yAvion = 570;
     DrawText("Aeronaves no disponibles", 1010, yAvion, 20, UI::navy());
     yAvion += 34;
-    for (const Avion &avion : avionDAO.listar())
+    for (const Avion &avion : avionesCache)
     {
         if (avion.getEstado() != "Activo")
         {
@@ -559,22 +588,70 @@ void ModuloVuelos::dibujarNotificaciones()
     }
 
     if (UI::botonSecundario(Rectangle{1010, 740, 160, 38}, "Marcar leidas", UI::orange()))
+    {
         notificacionDAO.marcarLeidas(1);
+        refrescarAvisos();
+    }
 }
 
 void ModuloVuelos::dibujarListado()
 {
-    DrawText("Vuelos registrados", 240, 95, 30, UI::navy());
-    int y = 145;
-    DrawText("ID   Nro       Ruta       Salida               Avion   Estado", 240, y, 17, UI::muted());
-    y += 30;
-    for (const Vuelo &vuelo : vueloDAO.listar())
+    DrawText("Historial de vuelos", 240, 95, 30, UI::navy());
+    DrawText("Ultimos vuelos cargados y su estado operativo", 240, 130, 17, UI::muted());
+
+    Rectangle panel = {240, 165, 740, 540};
+    DrawRectangleRounded(Rectangle{panel.x, panel.y + 6, panel.width, panel.height}, 0.035f, 8, Color{224, 232, 242, 255});
+    DrawRectangleRounded(panel, 0.03f, 8, WHITE);
+    DrawRectangleLinesEx(panel, 1, UI::border());
+    DrawRectangleRounded(Rectangle{panel.x, panel.y, 8, panel.height}, 0.03f, 8, UI::blue());
+
+    DrawText("Listado general", 265, 190, 22, UI::navy());
+    std::string total = std::to_string(vuelosCache.size()) + " registros";
+    int totalAncho = MeasureText(total.c_str(), 16);
+    Rectangle contador = {panel.x + panel.width - totalAncho - 52, 184, (float)totalAncho + 28, 32};
+    DrawRectangleRounded(contador, 0.24f, 8, Fade(UI::blue(), 0.12f));
+    DrawText(total.c_str(), (int)contador.x + 14, (int)contador.y + 8, 16, UI::blue());
+
+    Rectangle cabecera = {265, 240, 690, 42};
+    DrawRectangleRounded(cabecera, 0.08f, 8, Fade(UI::blue(), 0.10f));
+    DrawText("ID", 285, 253, 15, UI::blue());
+    DrawText("Vuelo", 345, 253, 15, UI::blue());
+    DrawText("Ruta", 465, 253, 15, UI::blue());
+    DrawText("Salida", 565, 253, 15, UI::blue());
+    DrawText("Avion", 765, 253, 15, UI::blue());
+    DrawText("Estado", 840, 253, 15, UI::blue());
+
+    if (vuelosCache.empty())
     {
-        std::stringstream ss;
-        ss << vuelo.getId() << "   " << vuelo.getNumero() << "   " << vuelo.getOrigen() << "-" << vuelo.getDestino()
-           << "   " << vuelo.getFechaSalida() << "   " << vuelo.getIdAvion() << "   " << vuelo.getEstado();
-        UI::textoRecortado(ss.str(), 240, y, 17, DARKGRAY, 94);
-        y += 30;
+        DrawRectangleRounded(Rectangle{265, 315, 690, 95}, 0.04f, 8, Color{248, 250, 253, 255});
+        DrawRectangleLinesEx(Rectangle{265, 315, 690, 95}, 1, UI::border());
+        DrawText("No hay vuelos registrados todavia.", 295, 348, 20, UI::muted());
+        DrawText("Cuando guarde un vuelo, aparecera en este historial.", 295, 378, 16, UI::muted());
+        return;
+    }
+
+    int y = 300;
+    for (int i = 0; i < (int)vuelosCache.size() && i < 7; ++i)
+    {
+        const Vuelo &vuelo = vuelosCache[i];
+        Rectangle fila = {265, (float)y, 690, 52};
+        Color fondo = i % 2 == 0 ? Color{248, 250, 253, 255} : WHITE;
+        Color estadoColor = vuelo.getEstado() == "Cancelado" ? RED : vuelo.getEstado() == "Reprogramado" ? UI::orange()
+                                                                                                          : UI::blue();
+        DrawRectangleRounded(fila, 0.035f, 8, fondo);
+        DrawRectangleLinesEx(fila, 1, Color{226, 234, 244, 255});
+
+        std::string ruta = vuelo.getOrigen() + "-" + vuelo.getDestino();
+        std::string avion = "#" + std::to_string(vuelo.getIdAvion());
+        DrawText(("#" + std::to_string(vuelo.getId())).c_str(), 285, y + 17, 16, UI::navy());
+        UI::textoRecortado(vuelo.getNumero(), 345, y + 17, 16, UI::navy(), 12);
+        DrawText(ruta.c_str(), 465, y + 17, 16, DARKGRAY);
+        UI::textoRecortado(vuelo.getFechaSalida(), 565, y + 17, 15, DARKGRAY, 19);
+        DrawText(avion.c_str(), 765, y + 17, 16, DARKGRAY);
+        DrawRectangleRounded(Rectangle{840, (float)y + 12, 92, 28}, 0.35f, 8, Fade(estadoColor, 0.12f));
+        UI::textoRecortado(vuelo.getEstado(), 852, y + 19, 14, estadoColor, 11);
+
+        y += 58;
     }
 }
 
@@ -582,8 +659,11 @@ void ModuloVuelos::mostrar()
 {
     while (!WindowShouldClose())
     {
+        if (vistaAnterior != vista)
+            refrescarDatos();
+
         BeginDrawing();
-        UI::shellModulo("Modulo 1 / Operaciones de Vuelo", "Vuelos > Crear, asignar, cancelar y reprogramar", UI::blue(), notificacionDAO.contarNoLeidas(1));
+        UI::shellModulo("Modulo 1 / Operaciones de Vuelo", "Vuelos > Crear, asignar, cancelar y reprogramar", UI::blue(), notificacionesNoLeidas);
         dibujarNavegacion();
         if (vista < 0)
         {

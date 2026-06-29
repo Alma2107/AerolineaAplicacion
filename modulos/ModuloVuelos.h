@@ -4,6 +4,8 @@
 #include "../dao/VueloDAO.h"
 #include "../dao/AvionDAO.h"
 #include "../dao/NotificacionDAO.h"
+#include "../modelos/Avion.h"
+#include "../modelos/Notificacion.h"
 #include <string>
 #include <vector>
 
@@ -61,12 +63,21 @@ private:
     std::string climaIata;
     std::string filtroHistorial;
     DatosClima clima;
+    int vistaAnterior;
+    int notificacionesNoLeidas;
+    std::vector<Avion> avionesCache;
+    std::vector<Avion> avionesDisponiblesCache;
+    std::vector<Vuelo> vuelosCache;
+    std::vector<Notificacion> notificacionesCache;
+    std::vector<std::string> aeropuertosCache;
 
     void dibujarNavegacion();
     void dibujarCrearVuelo();
     void dibujarAcciones();
     void dibujarNotificaciones();
     void dibujarListado();
+    void refrescarDatos();
+    void refrescarAvisos();
 
 public:
     ModuloVuelos();

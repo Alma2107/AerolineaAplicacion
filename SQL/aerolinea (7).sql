@@ -438,6 +438,44 @@ INSERT INTO `vuelos` (`id_vuelo`, `numero_vuelo`, `id_avion`, `origen_iata`, `de
 (9, 'JA1009', 8, 'AEP', 'COR', '2026-07-11 07:00:00', '2026-07-11 08:15:00', 16000.00, 'Programado'),
 (10, 'JA1010', 8, 'COR', 'MDZ', '2026-07-12 09:00:00', '2026-07-12 10:05:00', 145000.00, 'Programado');
 
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `notificaciones`
+--
+
+CREATE TABLE `notificaciones` (
+  `id_notificacion` int(11) NOT NULL,
+  `modulo_destino` int(11) NOT NULL,
+  `tipo` varchar(50) NOT NULL,
+  `mensaje` text NOT NULL,
+  `leida` tinyint(1) NOT NULL DEFAULT 0,
+  `fecha` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `objetos_perdidos`
+--
+
+CREATE TABLE `objetos_perdidos` (
+  `id_objeto` int(11) NOT NULL AUTO_INCREMENT,
+  `tipo` varchar(20) NOT NULL DEFAULT 'Objeto',
+  `descripcion` varchar(200) NOT NULL,
+  `id_avion` int(11) NOT NULL,
+  `numero_asiento` varchar(10) DEFAULT NULL,
+  `codigo_equipaje` varchar(50) DEFAULT NULL,
+  `fecha_hallazgo` datetime NOT NULL,
+  `ubicacion_exacta` varchar(120) NOT NULL,
+  `empleado_hallazgo` varchar(80) NOT NULL,
+  `estado` varchar(40) NOT NULL DEFAULT 'Pendiente verificacion',
+  `fecha_registro` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id_objeto`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
 --
 -- Índices para tablas volcadas
 --
@@ -616,6 +654,16 @@ ALTER TABLE `ticket_servicios`
 --
 ALTER TABLE `tipos_equipaje`
   MODIFY `id_tipo_equipaje` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+
+-- AUTO_INCREMENT de la tabla `notificaciones`
+--
+ALTER TABLE `notificaciones`
+  MODIFY `id_notificacion` int(11) NOT NULL AUTO_INCREMENT;
+
+-- AUTO_INCREMENT de la tabla `objetos_perdidos`
+--
+ALTER TABLE `objetos_perdidos`
+  MODIFY `id_objeto` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT de la tabla `vuelos`

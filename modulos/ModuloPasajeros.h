@@ -4,7 +4,9 @@
 #include "../dao/PasajeroDAO.h"
 #include "../dao/ReservaDAO.h"
 #include "../dao/NotificacionDAO.h"
+#include "../modelos/Notificacion.h"
 #include <string>
+#include <vector>
 
 class ModuloPasajeros
 {
@@ -16,7 +18,7 @@ private:
     int vista;
     int foco;
 
-    std::string qr;
+    std::string codigoReserva;
     std::string tipoDoc;
     std::string documento;
     std::string nombre;
@@ -29,8 +31,19 @@ private:
     std::string idMetodoPago;
     std::string asiento;
     std::string idPlan;
-    std::string codigoQR;
+    std::string codigoReservaNueva;
     std::string precio;
+    std::string idTipoEquipaje;
+    std::string cantidadEquipaje;
+    std::string precioEquipaje;
+    std::string idServicio;
+    std::string precioServicio;
+    std::string estadoAsientos;
+    int vistaAnterior;
+    int notificacionesNoLeidas;
+    std::vector<Reserva> reservasCache;
+    std::vector<Pasajero> pasajerosCache;
+    std::vector<Notificacion> notificacionesCache;
 
     void dibujarNavegacion();
     void dibujarCheckIn();
@@ -38,6 +51,8 @@ private:
     void dibujarCancelaciones();
     void dibujarNotificaciones();
     void dibujarListado();
+    void refrescarDatos();
+    void refrescarAvisos();
 
 public:
     ModuloPasajeros();

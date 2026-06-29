@@ -15,6 +15,7 @@ public:
     std::vector<Equipaje> listar() const;
     Equipaje registrar(int idTicket, int idTipoEquipaje, double peso, double precio);
     Equipaje rastrear(const std::string &codigoEtiqueta) const;
+    std::string buscarPropietarioPorEtiqueta(const std::string &codigoEtiqueta) const;
     bool actualizarEstado(const std::string &codigoEtiqueta, const std::string &estado);
 };
 

@@ -1,5 +1,7 @@
 #include "ReservaDAO.h"
 #include "PasajeroDAO.h"
+#include <ctime>
+#include <random>
 #include <sstream>
 
 ReservaDAO::ReservaDAO()
@@ -33,7 +35,7 @@ std::vector<Reserva> ReservaDAO::listar() const
     return reservas;
 }
 
-Reserva ReservaDAO::buscarPorQR(const std::string &codigoQR) const
+Reserva ReservaDAO::buscarPorCodigoReserva(const std::string &codigoReserva) const
 {
     auto filas = db.consultar(
         "SELECT t.id_ticket,p.id_pasajero,v.id_vuelo,CONCAT(p.nombre,' ',p.apellido),p.numero_documento,"
@@ -42,7 +44,7 @@ Reserva ReservaDAO::buscarPorQR(const std::string &codigoQR) const
         "FROM tickets_detalle t "
         "JOIN pasajeros p ON p.id_pasajero=t.id_pasajero "
         "JOIN vuelos v ON v.id_vuelo=t.id_vuelo "
-        "WHERE t.codigo_reserva_pnr='" + ConexionDB::escapar(codigoQR) + "' LIMIT 1");
+        "WHERE t.codigo_reserva_pnr='" + ConexionDB::escapar(codigoReserva) + "' LIMIT 1");
     if (!filas.empty() && filas[0].size() >= 12)
     {
         return Reserva(
@@ -55,10 +57,54 @@ Reserva ReservaDAO::buscarPorQR(const std::string &codigoQR) const
     return Reserva();
 }
 
+std::string ReservaDAO::generarCodigoReserva() const
+{
+    static const std::string caracteres = "ABCDEFGHJKLMNPSTUVWXYZ23456789";
+    static std::mt19937 generador((unsigned int)std::time(nullptr));
+
+    for (int intento = 0; intento < 40; ++intento)
+    {
+        std::stringstream codigo;
+        for (int i = 0; i < 6; ++i)
+            codigo << caracteres[generador() % caracteres.size()];
+
+        auto existente = db.consultar("SELECT COUNT(*) FROM tickets_detalle WHERE codigo_reserva_pnr='" + ConexionDB::escapar(codigo.str()) + "'");
+        if (existente.empty() || existente[0].empty() || ConexionDB::convertirEntero(existente[0][0]) == 0)
+            return codigo.str();
+    }
+
+    auto siguiente = db.consultar("SELECT COALESCE(MAX(id_ticket),0)+1 FROM tickets_detalle");
+    int numero = siguiente.empty() || siguiente[0].empty() ? 1 : ConexionDB::convertirEntero(siguiente[0][0], 1);
+    std::stringstream fallback;
+    fallback << "P" << numero;
+    return fallback.str();
+}
+
+int ReservaDAO::contarAsientosDisponibles(int idVuelo) const
+{
+    auto filas = db.consultar(
+        "SELECT a.capacidad,"
+        "SUM(CASE WHEN t.id_ticket IS NOT NULL AND t.precio_tramo_pagado>0 AND COALESCE(t.numero_asiento,'')<>'REEMB' THEN 1 ELSE 0 END) "
+        "FROM vuelos v "
+        "JOIN aviones a ON a.id_avion=v.id_avion "
+        "LEFT JOIN tickets_detalle t ON t.id_vuelo=v.id_vuelo "
+        "WHERE v.id_vuelo=" +
+        std::to_string(idVuelo) + " AND v.estado_vuelo<>'Cancelado' "
+                                "GROUP BY a.capacidad");
+    if (filas.empty() || filas[0].size() < 2)
+        return -1;
+
+    int capacidad = ConexionDB::convertirEntero(filas[0][0]);
+    int vendidos = ConexionDB::convertirEntero(filas[0][1]);
+    return capacidad - vendidos;
+}
+
 std::string ReservaDAO::validarReservaPresencial(const Pasajero &pasajero, int idCliente, int idVuelo,
                                                  const std::string &asiento, int idPlan,
-                                                 const std::string &codigoQR, double precio,
-                                                 int idMetodoPago) const
+                                                 const std::string &codigoReserva, double precio,
+                                                 int idMetodoPago, int idTipoEquipaje,
+                                                 int cantidadEquipaje, double precioEquipaje,
+                                                 int idServicio, double precioServicio) const
 {
     if (pasajero.getNumeroDocumento().empty() || pasajero.getNombre().empty() || pasajero.getApellido().empty())
         return "Faltan datos obligatorios del pasajero.";
@@ -70,14 +116,28 @@ std::string ReservaDAO::validarReservaPresencial(const Pasajero &pasajero, int i
         return "Vuelo, plan tarifario y metodo de pago son obligatorios.";
     if (asiento.empty())
         return "Debe asignar un asiento.";
-    if (codigoQR.empty())
-        return "Debe generar o ingresar un codigo QR/PNR.";
+    if (codigoReserva.empty())
+        return "Debe generar o ingresar un codigo de reserva.";
     if (precio <= 0)
         return "El precio pagado debe ser mayor a cero.";
 
     auto vuelo = db.consultar("SELECT COUNT(*) FROM vuelos WHERE id_vuelo=" + std::to_string(idVuelo) + " AND estado_vuelo<>'Cancelado'");
     if (vuelo.empty() || vuelo[0].empty() || ConexionDB::convertirEntero(vuelo[0][0]) == 0)
         return "El vuelo no existe o se encuentra cancelado.";
+
+    int disponibles = contarAsientosDisponibles(idVuelo);
+    if (disponibles <= 0)
+        return "No quedan asientos libres para ese vuelo. La compra presencial debe pasarse a otro dia/vuelo.";
+
+    auto asientoOcupado = db.consultar(
+        "SELECT COUNT(*) FROM tickets_detalle "
+        "WHERE id_vuelo=" +
+        std::to_string(idVuelo) +
+        " AND precio_tramo_pagado>0 "
+        "AND UPPER(TRIM(COALESCE(numero_asiento,'')))=UPPER(TRIM('" +
+        ConexionDB::escapar(asiento) + "'))");
+    if (!asientoOcupado.empty() && !asientoOcupado[0].empty() && ConexionDB::convertirEntero(asientoOcupado[0][0]) > 0)
+        return "Ese asiento ya esta ocupado para el vuelo elegido.";
 
     auto cliente = db.consultar("SELECT COUNT(*) FROM clientes WHERE id_cliente=" + std::to_string(idCliente) + " AND estado_cuenta=1");
     if (cliente.empty() || cliente[0].empty() || ConexionDB::convertirEntero(cliente[0][0]) == 0)
@@ -91,19 +151,43 @@ std::string ReservaDAO::validarReservaPresencial(const Pasajero &pasajero, int i
     if (metodo.empty() || metodo[0].empty() || ConexionDB::convertirEntero(metodo[0][0]) == 0)
         return "El metodo de pago no existe.";
 
-    auto qr = db.consultar("SELECT COUNT(*) FROM tickets_detalle WHERE codigo_reserva_pnr='" + ConexionDB::escapar(codigoQR) + "'");
-    if (!qr.empty() && !qr[0].empty() && ConexionDB::convertirEntero(qr[0][0]) > 0)
-        return "El codigo QR/PNR ya existe.";
+    auto reservaExistente = db.consultar("SELECT COUNT(*) FROM tickets_detalle WHERE codigo_reserva_pnr='" + ConexionDB::escapar(codigoReserva) + "'");
+    if (!reservaExistente.empty() && !reservaExistente[0].empty() && ConexionDB::convertirEntero(reservaExistente[0][0]) > 0)
+        return "El codigo de reserva ya existe.";
+
+    if (idTipoEquipaje > 0)
+    {
+        if (cantidadEquipaje <= 0)
+            return "La cantidad de equipaje debe ser mayor a cero.";
+        if (precioEquipaje < 0)
+            return "El precio de equipaje no puede ser negativo.";
+        auto tipoEquipaje = db.consultar("SELECT COUNT(*) FROM tipos_equipaje WHERE id_tipo_equipaje=" + std::to_string(idTipoEquipaje));
+        if (tipoEquipaje.empty() || tipoEquipaje[0].empty() || ConexionDB::convertirEntero(tipoEquipaje[0][0]) == 0)
+            return "El tipo de equipaje no existe.";
+    }
+
+    if (idServicio > 0)
+    {
+        if (precioServicio < 0)
+            return "El precio del servicio no puede ser negativo.";
+        auto servicio = db.consultar("SELECT COUNT(*) FROM servicios_adicionales WHERE id_servicio=" + std::to_string(idServicio));
+        if (servicio.empty() || servicio[0].empty() || ConexionDB::convertirEntero(servicio[0][0]) == 0)
+            return "El servicio adicional no existe.";
+    }
 
     return "OK";
 }
 
 Reserva ReservaDAO::crearReservaPresencial(const Pasajero &pasajero, int idCliente, int idVuelo,
                                            const std::string &asiento, int idPlan,
-                                           const std::string &codigoQR, double precio,
-                                           int idMetodoPago)
+                                           const std::string &codigoReserva, double precio,
+                                           int idMetodoPago, int idTipoEquipaje,
+                                           int cantidadEquipaje, double precioEquipaje,
+                                           int idServicio, double precioServicio)
 {
-    std::string validacion = validarReservaPresencial(pasajero, idCliente, idVuelo, asiento, idPlan, codigoQR, precio, idMetodoPago);
+    std::string validacion = validarReservaPresencial(pasajero, idCliente, idVuelo, asiento, idPlan, codigoReserva, precio,
+                                                       idMetodoPago, idTipoEquipaje, cantidadEquipaje, precioEquipaje,
+                                                       idServicio, precioServicio);
     if (validacion != "OK")
         return Reserva();
 
@@ -117,7 +201,7 @@ Reserva ReservaDAO::crearReservaPresencial(const Pasajero &pasajero, int idClien
 
     std::stringstream orden;
     orden << "INSERT INTO compras_ordenes (id_cliente,fecha_compra,monto_total_pagado,id_metodo_pago) VALUES ("
-          << idCliente << ",NOW()," << precio << "," << idMetodoPago << ")";
+          << idCliente << ",NOW()," << (precio + precioEquipaje + precioServicio) << "," << idMetodoPago << ")";
     if (!db.ejecutar(orden.str()))
         return Reserva();
 
@@ -128,16 +212,39 @@ Reserva ReservaDAO::crearReservaPresencial(const Pasajero &pasajero, int idClien
     std::stringstream ticket;
     ticket << "INSERT INTO tickets_detalle (id_orden,id_vuelo,id_pasajero,numero_asiento,id_plan,codigo_reserva_pnr,precio_tramo_pagado) VALUES ("
            << ConexionDB::convertirEntero(idOrden[0][0]) << "," << idVuelo << "," << guardado.getId() << ",'"
-           << ConexionDB::escapar(asiento) << "'," << idPlan << ",'" << ConexionDB::escapar(codigoQR) << "'," << precio << ")";
+           << ConexionDB::escapar(asiento) << "'," << idPlan << ",'" << ConexionDB::escapar(codigoReserva) << "'," << precio << ")";
     if (!db.ejecutar(ticket.str()))
         return Reserva();
 
-    return buscarPorQR(codigoQR);
+    Reserva reserva = buscarPorCodigoReserva(codigoReserva);
+    if (reserva.getIdTicket() == 0)
+        return Reserva();
+
+    if (idTipoEquipaje > 0)
+    {
+        std::stringstream etiqueta;
+        etiqueta << "TAG-" << reserva.getIdTicket();
+        std::stringstream equipaje;
+        equipaje << "INSERT INTO ticket_equipajes (id_ticket,id_tipo_equipaje,codigo_etiqueta,cantidad,precio_pagado,estado_equipaje) VALUES ("
+                 << reserva.getIdTicket() << "," << idTipoEquipaje << ",'" << etiqueta.str() << "',"
+                 << cantidadEquipaje << "," << precioEquipaje << ",'Registrado')";
+        db.ejecutar(equipaje.str());
+    }
+
+    if (idServicio > 0)
+    {
+        std::stringstream servicio;
+        servicio << "INSERT INTO ticket_servicios (id_ticket,id_servicio,precio_servicio_pagado) VALUES ("
+                 << reserva.getIdTicket() << "," << idServicio << "," << precioServicio << ")";
+        db.ejecutar(servicio.str());
+    }
+
+    return reserva;
 }
 
-bool ReservaDAO::registrarCheckIn(const std::string &codigoQR)
+bool ReservaDAO::registrarCheckIn(const std::string &codigoReserva)
 {
-    Reserva reserva = buscarPorQR(codigoQR);
+    Reserva reserva = buscarPorCodigoReserva(codigoReserva);
     if (reserva.getIdTicket() == 0)
         return false;
 
@@ -147,7 +254,7 @@ bool ReservaDAO::registrarCheckIn(const std::string &codigoQR)
 
     std::stringstream sql;
     sql << "INSERT INTO checkins (id_ticket,codigo_reserva_pnr,fecha,estado) VALUES ("
-        << reserva.getIdTicket() << ",'" << ConexionDB::escapar(codigoQR) << "',NOW(),'Realizado')";
+        << reserva.getIdTicket() << ",'" << ConexionDB::escapar(codigoReserva) << "',NOW(),'Realizado')";
     return db.ejecutar(sql.str());
 }
 

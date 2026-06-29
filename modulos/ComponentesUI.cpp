@@ -7,6 +7,54 @@ namespace UI
 static bool reemplazarAlEscribir = false;
 static std::map<std::string, Texture2D> texturas;
 
+static char caracterDesdeTecla(int tecla, bool shift)
+{
+    if (tecla >= KEY_A && tecla <= KEY_Z)
+        return (char)(shift ? 'A' + (tecla - KEY_A) : 'a' + (tecla - KEY_A));
+
+    if (tecla >= KEY_ZERO && tecla <= KEY_NINE)
+    {
+        const char normales[] = "0123456789";
+        const char conShift[] = ")!@#$%^&*(";
+        return shift ? conShift[tecla - KEY_ZERO] : normales[tecla - KEY_ZERO];
+    }
+
+    if (tecla >= KEY_KP_0 && tecla <= KEY_KP_9)
+        return (char)('0' + (tecla - KEY_KP_0));
+
+    switch (tecla)
+    {
+    case KEY_SPACE:
+        return ' ';
+    case KEY_MINUS:
+    case KEY_KP_SUBTRACT:
+        return shift ? '_' : '-';
+    case KEY_EQUAL:
+    case KEY_KP_ADD:
+        return shift ? '+' : '=';
+    case KEY_PERIOD:
+    case KEY_KP_DECIMAL:
+        return shift ? ':' : '.';
+    case KEY_COMMA:
+        return shift ? '<' : ',';
+    case KEY_SLASH:
+    case KEY_KP_DIVIDE:
+        return shift ? '?' : '/';
+    case KEY_SEMICOLON:
+        return shift ? ':' : ';';
+    case KEY_APOSTROPHE:
+        return shift ? '"' : '\'';
+    case KEY_LEFT_BRACKET:
+        return shift ? '{' : '[';
+    case KEY_RIGHT_BRACKET:
+        return shift ? '}' : ']';
+    case KEY_BACKSLASH:
+        return shift ? '|' : '\\';
+    default:
+        return '\0';
+    }
+}
+
 Color navy() { return Color{8, 28, 52, 255}; }
 Color panel() { return Color{245, 248, 252, 255}; }
 Color border() { return Color{211, 221, 233, 255}; }
@@ -54,6 +102,7 @@ bool input(Rectangle rect, const std::string &label, const std::string &valor, b
 void capturarTexto(std::string &valor, int maximo)
 {
     bool control = IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL);
+    bool shift = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
 
     if (control && IsKeyPressed(KEY_A))
     {
@@ -89,6 +138,7 @@ void capturarTexto(std::string &valor, int maximo)
     }
 
     int tecla = GetCharPressed();
+    bool recibioCaracter = tecla > 0;
     while (tecla > 0)
     {
         if (reemplazarAlEscribir)
@@ -99,6 +149,34 @@ void capturarTexto(std::string &valor, int maximo)
         if (tecla >= 32 && tecla <= 125 && (int)valor.size() < maximo)
             valor.push_back((char)tecla);
         tecla = GetCharPressed();
+    }
+
+    if (!recibioCaracter && !control)
+    {
+        int teclas[] = {
+            KEY_A, KEY_B, KEY_C, KEY_D, KEY_E, KEY_F, KEY_G, KEY_H, KEY_I, KEY_J, KEY_K, KEY_L, KEY_M,
+            KEY_N, KEY_O, KEY_P, KEY_Q, KEY_R, KEY_S, KEY_T, KEY_U, KEY_V, KEY_W, KEY_X, KEY_Y, KEY_Z,
+            KEY_ZERO, KEY_ONE, KEY_TWO, KEY_THREE, KEY_FOUR, KEY_FIVE, KEY_SIX, KEY_SEVEN, KEY_EIGHT, KEY_NINE,
+            KEY_KP_0, KEY_KP_1, KEY_KP_2, KEY_KP_3, KEY_KP_4, KEY_KP_5, KEY_KP_6, KEY_KP_7, KEY_KP_8, KEY_KP_9,
+            KEY_SPACE, KEY_MINUS, KEY_EQUAL, KEY_PERIOD, KEY_COMMA, KEY_SLASH, KEY_SEMICOLON, KEY_APOSTROPHE,
+            KEY_LEFT_BRACKET, KEY_RIGHT_BRACKET, KEY_BACKSLASH, KEY_KP_DECIMAL, KEY_KP_SUBTRACT, KEY_KP_ADD, KEY_KP_DIVIDE};
+
+        for (int teclaFisica : teclas)
+        {
+            if (!IsKeyPressed(teclaFisica))
+                continue;
+
+            if (reemplazarAlEscribir)
+            {
+                valor.clear();
+                reemplazarAlEscribir = false;
+            }
+
+            char caracter = caracterDesdeTecla(teclaFisica, shift);
+            if (caracter != '\0' && (int)valor.size() < maximo)
+                valor.push_back(caracter);
+            break;
+        }
     }
 }
 

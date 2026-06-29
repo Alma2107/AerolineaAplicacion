@@ -2,12 +2,17 @@
 #define MODULO_EQUIPAJE_H
 
 #include "../dao/EquipajeDAO.h"
+#include "../dao/NotificacionDAO.h"
+#include "../modelos/Equipaje.h"
+#include "../modelos/Notificacion.h"
 #include <string>
+#include <vector>
 
 class ModuloEquipaje
 {
 private:
     EquipajeDAO equipajeDAO;
+    NotificacionDAO notificacionDAO;
     std::string mensaje;
     int vista;
     int foco;
@@ -16,11 +21,18 @@ private:
     std::string peso;
     std::string precio;
     std::string etiqueta;
+    int vistaAnterior;
+    int notificacionesNoLeidas;
+    std::vector<Equipaje> equipajesCache;
+    std::vector<Notificacion> notificacionesCache;
 
     void dibujarNavegacion();
     void dibujarRegistrar();
     void dibujarRastrear();
     void dibujarListado();
+    void dibujarAvisos();
+    void refrescarDatos();
+    void refrescarAvisos();
 
 public:
     ModuloEquipaje();
