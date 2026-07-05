@@ -642,12 +642,6 @@ ALTER TABLE `tipos_equipaje`
 ALTER TABLE `notificaciones`
   MODIFY `id_notificacion` int(11) NOT NULL AUTO_INCREMENT;
 
--- AUTO_INCREMENT de la tabla `objetos_perdidos`
---
-ALTER TABLE `objetos_perdidos`
-  MODIFY `id_objeto` int(11) NOT NULL AUTO_INCREMENT;
-
---
 -- AUTO_INCREMENT de la tabla `vuelos`
 --
 ALTER TABLE `vuelos`

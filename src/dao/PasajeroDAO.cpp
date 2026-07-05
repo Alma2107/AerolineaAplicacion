@@ -1,4 +1,5 @@
 #include "PasajeroDAO.h"
+#include <cctype>
 #include <sstream>
 
 PasajeroDAO::PasajeroDAO()
@@ -39,6 +40,15 @@ Pasajero PasajeroDAO::registrar(const std::string &tipoDocumento, const std::str
                                 const std::string &fechaNacimiento, bool asistenciaEspecial,
                                 const std::string &detallesMedicos)
 {
+    if (tipoDocumento == "DNI")
+    {
+        if (numeroDocumento.empty() || numeroDocumento.size() > 8)
+            return Pasajero();
+        for (char c : numeroDocumento)
+            if (!std::isdigit((unsigned char)c))
+                return Pasajero();
+    }
+
     Pasajero existente = buscarPorDocumento(numeroDocumento);
     if (existente.getId() != 0)
         return existente;

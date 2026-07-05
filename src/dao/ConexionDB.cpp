@@ -10,6 +10,14 @@ static bool archivoExiste(const std::string &ruta)
     return archivo.good();
 }
 
+static bool comandoDisponible(const std::string &comando)
+{
+    if (archivoExiste(comando))
+        return true;
+    std::string prueba = "where \"" + comando + "\" >nul 2>&1";
+    return std::system(prueba.c_str()) == 0;
+}
+
 static std::string buscarMysqlExe()
 {
     const std::string rutas[] = {
@@ -72,7 +80,7 @@ std::string ConexionDB::comandoMysql(const std::string &sql, bool usarBase) cons
 
 bool ConexionDB::conectar()
 {
-    if (!archivoExiste(mysqlExe))
+    if (!comandoDisponible(mysqlExe))
     {
         std::ofstream log("logs/conexion_aerogest.log", std::ios::app);
         log << "Archivo mysql.exe no encontrado: " << mysqlExe << std::endl;
@@ -122,11 +130,19 @@ std::string ConexionDB::getNombreBase() const
 
 bool ConexionDB::ejecutar(const std::string &sql) const
 {
-    if (!archivoExiste(mysqlExe))
+    if (!comandoDisponible(mysqlExe))
         return false;
 
     std::string tempFile = "build\\temp_exec.txt";
-    std::string cmd = "\"" + mysqlExe + "\" -h 127.0.0.1 -u root --database=" + nombreBase + " -e \"" + sql + "\" > \"" + tempFile + "\" 2>&1";
+    std::string sqlLimpio = sql;
+    for (char &c : sqlLimpio)
+    {
+        if (c == '"')
+            c = '\'';
+        if (c == '\n' || c == '\r')
+            c = ' ';
+    }
+    std::string cmd = "\"" + mysqlExe + "\" --default-character-set=utf8mb4 -h 127.0.0.1 -P 3306 -u root --database=" + nombreBase + " -e \"" + sqlLimpio + "\" > \"" + tempFile + "\" 2>&1";
     
     int resultado = std::system(cmd.c_str());
     
@@ -147,7 +163,7 @@ bool ConexionDB::ejecutar(const std::string &sql) const
 std::vector<std::vector<std::string>> ConexionDB::consultar(const std::string &sql) const
 {
     std::vector<std::vector<std::string>> filas;
-    if (!archivoExiste(mysqlExe))
+    if (!comandoDisponible(mysqlExe))
         return filas;
 
     std::string tempFile = "build\\temp_query.txt";
@@ -158,7 +174,7 @@ std::vector<std::vector<std::string>> ConexionDB::consultar(const std::string &s
             c = '\'';
     }
     
-    std::string cmd = "\"" + mysqlExe + "\" -h 127.0.0.1 -u root --database=" + nombreBase + " -N -B -e \"" + sqlLimpio + "\" > \"" + tempFile + "\" 2>&1";
+    std::string cmd = "\"" + mysqlExe + "\" --default-character-set=utf8mb4 -h 127.0.0.1 -P 3306 -u root --database=" + nombreBase + " -N -B -e \"" + sqlLimpio + "\" > \"" + tempFile + "\" 2>&1";
     
     int resultado = std::system(cmd.c_str());
     
@@ -189,12 +205,30 @@ bool ConexionDB::inicializar()
 {
     static bool esquemaPreparado = false;
 
-    if (!archivoExiste(mysqlExe))
+    if (!conectar())
+        return false;
+
+    std::string crearDb = "\"" + mysqlExe + "\" --default-character-set=utf8mb4 -h 127.0.0.1 -P 3306 -u root -e \"CREATE DATABASE IF NOT EXISTS " + nombreBase + " CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci\" >nul 2>&1";
+    if (std::system(crearDb.c_str()) != 0)
         return false;
 
     conectada = ejecutar("SELECT 1");
     if (conectada && !esquemaPreparado)
     {
+        auto tablasBase = consultar("SHOW TABLES LIKE 'vuelos'");
+        if (tablasBase.empty() && archivoExiste("database\\aerolinea.sql"))
+        {
+            std::string importar = "\"" + mysqlExe + "\" --default-character-set=utf8mb4 -h 127.0.0.1 -P 3306 -u root --database=" + nombreBase + " < \"database\\aerolinea.sql\"";
+            int resultadoImportacion = std::system(importar.c_str());
+            if (resultadoImportacion != 0)
+            {
+                std::ofstream log("logs/conexion_aerogest.log", std::ios::app);
+                log << "No se pudo importar database/aerolinea.sql. Codigo: " << resultadoImportacion << std::endl;
+            }
+        }
+
+        ejecutar("DROP TABLE IF EXISTS objetos_perdidos");
+
         ejecutar("ALTER TABLE tickets_detalle MODIFY codigo_reserva_pnr VARCHAR(20) NOT NULL");
 
         ejecutar("CREATE TABLE IF NOT EXISTS checkins ("

@@ -1,6 +1,23 @@
 #include "VueloDAO.h"
 #include "AvionDAO.h"
+#include <ctime>
+#include <iomanip>
 #include <sstream>
+
+static bool parseFechaMysql(const std::string &valor, std::tm &salida)
+{
+    std::stringstream ss(valor);
+    ss >> std::get_time(&salida, "%Y-%m-%d %H:%M:%S");
+    return !ss.fail();
+}
+
+static int anioActual()
+{
+    time_t ahora = time(NULL);
+    tm local;
+    localtime_s(&local, &ahora);
+    return local.tm_year + 1900;
+}
 
 VueloDAO::VueloDAO()
 {
@@ -55,6 +72,17 @@ std::string VueloDAO::validar(const Vuelo &vuelo) const
         return "El origen y el destino no pueden ser iguales.";
     if (vuelo.getFechaSalida().empty() || vuelo.getFechaLlegada().empty())
         return "Debe cargar fecha/hora de salida y llegada.";
+    std::tm salida = {};
+    std::tm llegada = {};
+    if (!parseFechaMysql(vuelo.getFechaSalida(), salida) || !parseFechaMysql(vuelo.getFechaLlegada(), llegada))
+        return "Las fechas deben tener formato YYYY-MM-DD HH:MM:SS.";
+    int limiteAnio = anioActual() + 1;
+    if (salida.tm_year + 1900 > limiteAnio || llegada.tm_year + 1900 > limiteAnio)
+        return "El anio del vuelo excede el limite permitido.";
+    time_t salidaTime = std::mktime(&salida);
+    time_t llegadaTime = std::mktime(&llegada);
+    if (salidaTime == (time_t)-1 || llegadaTime == (time_t)-1 || llegadaTime <= salidaTime)
+        return "La fecha/hora de llegada debe ser posterior a la salida.";
     if (vuelo.getPrecioBase() <= 0)
         return "El precio base debe ser mayor a cero.";
 
@@ -69,6 +97,14 @@ std::string VueloDAO::validar(const Vuelo &vuelo) const
         return "La aeronave seleccionada no existe.";
     if (avion.getEstado() != "Activo")
         return "La aeronave esta en " + avion.getEstado() + " y no puede utilizarse.";
+
+    auto solapados = db.consultar(
+        "SELECT COUNT(*) FROM vuelos WHERE id_avion=" + std::to_string(vuelo.getIdAvion()) +
+        " AND estado_vuelo<>'Cancelado' AND id_vuelo<>" + std::to_string(vuelo.getId()) +
+        " AND '" + ConexionDB::escapar(vuelo.getFechaSalida()) + "' < fecha_llegada"
+        " AND '" + ConexionDB::escapar(vuelo.getFechaLlegada()) + "' > fecha_salida");
+    if (!solapados.empty() && !solapados[0].empty() && ConexionDB::convertirEntero(solapados[0][0]) > 0)
+        return "La aeronave ya tiene otro vuelo en ese rango horario.";
 
     return "OK";
 }
@@ -124,6 +160,13 @@ bool VueloDAO::asignarAvion(int idVuelo, int idAvion)
     if (avion.getId() == 0 || avion.getEstado() != "Activo")
         return false;
 
+    Vuelo vuelo = buscarPorId(idVuelo);
+    if (vuelo.getId() == 0)
+        return false;
+    vuelo.setIdAvion(idAvion);
+    if (validar(vuelo) != "OK")
+        return false;
+
     std::stringstream sql;
     sql << "UPDATE vuelos SET id_avion=" << idAvion << ", estado_vuelo='Reprogramado' WHERE id_vuelo=" << idVuelo;
     return db.ejecutar(sql.str());
@@ -138,6 +181,14 @@ bool VueloDAO::cancelar(int idVuelo, const std::string &motivo)
 
 bool VueloDAO::reprogramar(int idVuelo, const std::string &nuevaSalida, const std::string &nuevaLlegada)
 {
+    Vuelo vuelo = buscarPorId(idVuelo);
+    if (vuelo.getId() == 0)
+        return false;
+    vuelo.setFechaSalida(nuevaSalida);
+    vuelo.setFechaLlegada(nuevaLlegada);
+    if (validar(vuelo) != "OK")
+        return false;
+
     std::stringstream sql;
     sql << "UPDATE vuelos SET fecha_salida='" << ConexionDB::escapar(nuevaSalida)
         << "', fecha_llegada='" << ConexionDB::escapar(nuevaLlegada)

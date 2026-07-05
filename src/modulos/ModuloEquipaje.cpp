@@ -5,7 +5,7 @@
 #include <sstream>
 
 ModuloEquipaje::ModuloEquipaje()
-    : mensaje("Modulo activo."), vista(0), foco(0), idTicket("1"), idTipo("2"), peso("23.5"), precio("14000"), etiqueta("TAG-1001"), vistaAnterior(-1), notificacionesNoLeidas(0)
+    : mensaje("Modulo activo."), vista(0), foco(0), idTicket("1"), idTipo("2"), peso("23.5"), precio("14000"), etiqueta("TAG-1001"), filtroListado(""), vistaAnterior(-1), notificacionesNoLeidas(0)
 {
     refrescarDatos();
 }
@@ -18,8 +18,13 @@ void ModuloEquipaje::refrescarAvisos()
 
 void ModuloEquipaje::refrescarDatos()
 {
+    if (vista == 0)
+    {
+        ticketsCache = equipajeDAO.listarTickets();
+        tiposEquipajeCache = equipajeDAO.listarTiposEquipaje();
+    }
     if (vista == 2)
-        equipajesCache = equipajeDAO.listar();
+        equipajesCache = filtroListado.empty() ? equipajeDAO.listar() : equipajeDAO.buscar(filtroListado);
     if (vista == 4)
         refrescarAvisos();
     else
@@ -51,25 +56,40 @@ void ModuloEquipaje::dibujarRegistrar()
     DrawText("Registrar equipaje", 240, 95, 30, UI::navy());
     DrawText("Registra el equipaje en ticket_equipajes", 240, 130, 17, UI::muted());
 
-    if (UI::input(Rectangle{240, 190, 180, 46}, "ID ticket", idTicket, foco == 1))
-        foco = 1;
-    if (UI::input(Rectangle{450, 190, 180, 46}, "ID tipo equipaje", idTipo, foco == 2))
-        foco = 2;
-    if (UI::input(Rectangle{660, 190, 180, 46}, "Peso kg", peso, foco == 3))
+    DrawText("Ticket", 240, 168, 17, UI::muted());
+    int yTicket = 194;
+    for (int i = 0; i < (int)ticketsCache.size() && i < 6; ++i)
+    {
+        const CatalogoItem &ticket = ticketsCache[i];
+        if (UI::botonSecundario(Rectangle{240, (float)yTicket, 360, 32}, ticket.nombre, std::to_string(ticket.id) == idTicket ? UI::purple() : UI::muted()))
+            idTicket = std::to_string(ticket.id);
+        yTicket += 38;
+    }
+    DrawText("Tipo de equipaje", 630, 168, 17, UI::muted());
+    int yTipo = 194;
+    for (int i = 0; i < (int)tiposEquipajeCache.size() && i < 6; ++i)
+    {
+        const CatalogoItem &tipo = tiposEquipajeCache[i];
+        std::stringstream texto;
+        texto << tipo.nombre << " $" << (int)tipo.precio;
+        if (UI::botonSecundario(Rectangle{630, (float)yTipo, 360, 32}, texto.str(), std::to_string(tipo.id) == idTipo ? UI::purple() : UI::muted()))
+        {
+            idTipo = std::to_string(tipo.id);
+            precio = std::to_string((int)tipo.precio);
+        }
+        yTipo += 38;
+    }
+    if (UI::input(Rectangle{1030, 194, 160, 46}, "Peso kg", peso, foco == 3))
         foco = 3;
-    if (UI::input(Rectangle{870, 190, 180, 46}, "Precio", precio, foco == 4))
+    if (UI::input(Rectangle{1030, 270, 160, 46}, "Precio", precio, foco == 4))
         foco = 4;
 
-    if (foco == 1)
-        UI::capturarTexto(idTicket, 8);
-    if (foco == 2)
-        UI::capturarTexto(idTipo, 8);
     if (foco == 3)
         UI::capturarTexto(peso, 8);
     if (foco == 4)
         UI::capturarTexto(precio, 12);
 
-    if (UI::boton(Rectangle{240, 285, 210, 44}, "Registrar equipaje", UI::purple()))
+    if (UI::boton(Rectangle{240, 455, 210, 44}, "Registrar equipaje", UI::purple()))
     {
         Equipaje equipaje = equipajeDAO.registrar(ConexionDB::convertirEntero(idTicket), ConexionDB::convertirEntero(idTipo),
                                                   ConexionDB::convertirDouble(peso), ConexionDB::convertirDouble(precio));
@@ -81,7 +101,7 @@ void ModuloEquipaje::dibujarRegistrar()
         }
     }
 
-    DrawText(mensaje.c_str(), 240, 370, 19, UI::green());
+    DrawText(mensaje.c_str(), 240, 535, 19, UI::green());
 }
 
 void ModuloEquipaje::dibujarRastrear()
@@ -114,6 +134,13 @@ void ModuloEquipaje::dibujarListado()
 {
     DrawText("Equipajes registrados", 240, 95, 30, UI::navy());
     DrawText("Ultimos equipajes cargados y su estado actual", 240, 130, 17, UI::muted());
+    if (UI::input(Rectangle{740, 92, 360, 42}, "Buscar", filtroListado, foco == 8))
+        foco = 8;
+    if (foco == 8)
+    {
+        UI::capturarTexto(filtroListado, 40);
+        equipajesCache = filtroListado.empty() ? equipajeDAO.listar() : equipajeDAO.buscar(filtroListado);
+    }
 
     Rectangle panel = {240, 165, 990, 540};
     DrawRectangleRounded(Rectangle{panel.x, panel.y + 6, panel.width, panel.height}, 0.035f, 8, Color{224, 232, 242, 255});
@@ -173,19 +200,19 @@ void ModuloEquipaje::dibujarListado()
 
 void ModuloEquipaje::dibujarAvisos()
 {
-    DrawText("Avisos de objetos perdidos", 240, 95, 30, UI::navy());
+    DrawText("Avisos de equipaje perdido", 240, 95, 30, UI::navy());
     DrawText("Notificaciones enviadas por Flota y Mantenimiento", 240, 130, 17, UI::muted());
 
     int y = 180;
     if (notificacionesCache.empty())
     {
-        UI::aviso(Rectangle{240, 180, 760, 88}, "Sin avisos", "No hay objetos pendientes para verificar.", UI::purple());
+        UI::aviso(Rectangle{240, 180, 760, 88}, "Sin avisos", "No hay equipajes pendientes para verificar.", UI::purple());
     }
     for (const Notificacion &notificacion : notificacionesCache)
     {
         UI::aviso(Rectangle{240, (float)y, 880, 78}, notificacion.getTipo(), notificacion.getMensaje(), UI::purple());
 
-        if (notificacion.getTipo().find("Objeto perdido") != std::string::npos)
+        if (notificacion.getTipo().find("Equipaje perdido") != std::string::npos)
         {
             Rectangle accion = {240, (float)y + 84, 220, 34};
             if (UI::botonSecundario(accion, "Notificar Pasajeros", UI::green()))
@@ -218,10 +245,10 @@ void ModuloEquipaje::dibujarAvisos()
                 }
                 else
                 {
-                    mensajePasajero = "Objeto perdido verificado. Verificar propietario y coordinar devolucion. " + notificacion.getMensaje();
+                    mensajePasajero = "Equipaje perdido verificado. Verificar propietario por codigo de etiqueta y coordinar devolucion. " + notificacion.getMensaje();
                 }
 
-                notificacionDAO.crear(2, "Objeto perdido - Propietario identificado", mensajePasajero);
+                notificacionDAO.crear(2, "Equipaje perdido - Propietario identificado", mensajePasajero);
                 mensaje = "Se notifico a Atencion al Pasajero para contactar al pasajero.";
                 refrescarAvisos();
             }

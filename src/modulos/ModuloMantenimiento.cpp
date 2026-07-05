@@ -32,7 +32,7 @@ static std::string estadoVueloSegunTiempo(const Vuelo &vuelo)
 ModuloMantenimiento::ModuloMantenimiento()
     : mensaje("Modulo activo."), vista(0), foco(0), idAvion("4"), estado("Mantenimiento"),
       modeloNuevo("Airbus A320neo"), capacidadNueva("180"), estadoNuevo("Activo"),
-      avionObjeto("1"), numeroAsiento("14A"),
+      avionEquipajeHallado("1"), numeroAsiento("TAG-001"),
       asientoSeleccionadoMapa(""), vistaAnterior(-1), avionMapaSeleccionado(0)
 {
     refrescarDatos();
@@ -175,7 +175,7 @@ void ModuloMantenimiento::dibujarMapaAviones()
         if (CheckCollisionPointRec(GetMousePosition(), hit) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
         {
             avionMapaSeleccionado = avion.getId();
-            avionObjeto = std::to_string(avion.getId());
+            avionEquipajeHallado = std::to_string(avion.getId());
             detalleId = avion.getId();
         }
 
@@ -389,23 +389,36 @@ void ModuloMantenimiento::dibujarActualizarEstado()
     DrawText("Actualizar estado de aeronave", 240, 95, 30, UI::navy());
     DrawText("Al cambiar a Mantenimiento o En reparacion se avisa a Operaciones de Vuelo", 240, 130, 17, UI::muted());
 
-    if (UI::input(Rectangle{240, 190, 180, 46}, "ID aeronave", idAvion, foco == 1))
-        foco = 1;
-    if (UI::input(Rectangle{450, 190, 260, 46}, "Estado", estado, foco == 2))
+    DrawText("Seleccione aeronave", 240, 168, 17, UI::muted());
+    int xAvion = 240;
+    int yAvion = 194;
+    for (int i = 0; i < (int)avionesCache.size() && i < 8; ++i)
+    {
+        const Avion &avion = avionesCache[i];
+        std::stringstream texto;
+        texto << "#" << avion.getId() << " " << avion.getModelo() << " - " << avion.getEstado();
+        if (UI::botonSecundario(Rectangle{(float)xAvion, (float)yAvion, 330, 32}, texto.str(), std::to_string(avion.getId()) == idAvion ? UI::orange() : UI::muted()))
+            idAvion = std::to_string(avion.getId());
+        yAvion += 38;
+        if (yAvion > 310)
+        {
+            yAvion = 194;
+            xAvion += 350;
+        }
+    }
+    if (UI::input(Rectangle{240, 360, 260, 46}, "Estado", estado, foco == 2))
         foco = 2;
-    if (foco == 1)
-        UI::capturarTexto(idAvion, 8);
     if (foco == 2)
         UI::capturarTexto(estado, 30);
 
-    if (UI::botonSecundario(Rectangle{240, 280, 180, 42}, "Mantenimiento", UI::orange()))
+    if (UI::botonSecundario(Rectangle{530, 360, 180, 42}, "Mantenimiento", UI::orange()))
         estado = "Mantenimiento";
-    if (UI::botonSecundario(Rectangle{440, 280, 180, 42}, "En reparacion", RED))
+    if (UI::botonSecundario(Rectangle{730, 360, 180, 42}, "En reparacion", RED))
         estado = "En reparacion";
-    if (UI::botonSecundario(Rectangle{640, 280, 180, 42}, "Activo", UI::green()))
+    if (UI::botonSecundario(Rectangle{930, 360, 180, 42}, "Activo", UI::green()))
         estado = "Activo";
 
-    if (UI::boton(Rectangle{240, 355, 210, 44}, "Guardar estado", UI::orange()))
+    if (UI::boton(Rectangle{240, 430, 210, 44}, "Guardar estado", UI::orange()))
     {
         int avion = ConexionDB::convertirEntero(idAvion);
         bool ok = avionDAO.actualizarEstado(avion, estado);
@@ -423,7 +436,7 @@ void ModuloMantenimiento::dibujarActualizarEstado()
         }
     }
 
-    DrawText(mensaje.c_str(), 240, 440, 19, UI::green());
+    DrawText(mensaje.c_str(), 240, 485, 19, UI::green());
     dibujarListado();
 }
 
@@ -492,7 +505,30 @@ void ModuloMantenimiento::mostrar()
         else if (vista == 4)
         {
             DrawText("Plan de Inspeccion y Mantenimiento (PIMA)", 240, 95, 30, UI::navy());
-            UI::aviso(Rectangle{240, 160, 740, 110}, "PIMA", "Use Actualizar estado para registrar limpieza, inspeccion, mantenimiento y reparaciones.", UI::orange());
+            UI::aviso(Rectangle{240, 150, 740, 80}, "PIMA", "Use Actualizar estado para registrar limpieza, inspeccion, mantenimiento y reparaciones.", UI::orange());
+            DrawText("Equipaje perdido encontrado", 240, 260, 24, UI::navy());
+            DrawText("Seleccione avion y cargue el codigo de etiqueta para avisar a Equipaje.", 240, 292, 16, UI::muted());
+            int yAv = 330;
+            for (int i = 0; i < (int)avionesCache.size() && i < 6; ++i)
+            {
+                const Avion &avion = avionesCache[i];
+                std::stringstream texto;
+                texto << "#" << avion.getId() << " " << avion.getModelo();
+                if (UI::botonSecundario(Rectangle{240, (float)yAv, 280, 30}, texto.str(), std::to_string(avion.getId()) == avionEquipajeHallado ? UI::orange() : UI::muted()))
+                    avionEquipajeHallado = std::to_string(avion.getId());
+                yAv += 36;
+            }
+            if (UI::input(Rectangle{560, 330, 220, 46}, "Codigo etiqueta", numeroAsiento, foco == 30))
+                foco = 30;
+            if (foco == 30)
+                UI::capturarTexto(numeroAsiento, 20);
+            if (UI::boton(Rectangle{800, 330, 210, 44}, "Avisar equipaje", UI::orange()))
+            {
+                std::string texto = "Mantenimiento encontro equipaje perdido en avion " + avionEquipajeHallado + " el " + obtenerFechaHoraActual() + " con codigo: " + numeroAsiento + ". Validar contra reclamos del vuelo asociado.";
+                bool ok = notificacionDAO.crear(3, "Equipaje perdido encontrado", texto);
+                mensaje = ok ? "Aviso enviado al modulo Equipaje." : "No se pudo enviar aviso a Equipaje.";
+            }
+            DrawText(mensaje.c_str(), 560, 395, 18, mensaje.find("enviado") != std::string::npos ? UI::green() : RED);
             dibujarListado();
         }
         else

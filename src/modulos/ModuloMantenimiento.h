@@ -22,7 +22,7 @@ private:
     std::string modeloNuevo;
     std::string capacidadNueva;
     std::string estadoNuevo;
-    std::string avionObjeto;
+    std::string avionEquipajeHallado;
     std::string numeroAsiento;
     std::string asientoSeleccionadoMapa;
     int vistaAnterior;

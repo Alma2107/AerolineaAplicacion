@@ -21,10 +21,13 @@ private:
     std::string peso;
     std::string precio;
     std::string etiqueta;
+    std::string filtroListado;
     int vistaAnterior;
     int notificacionesNoLeidas;
     std::vector<Equipaje> equipajesCache;
     std::vector<Notificacion> notificacionesCache;
+    std::vector<CatalogoItem> ticketsCache;
+    std::vector<CatalogoItem> tiposEquipajeCache;
 
     void dibujarNavegacion();
     void dibujarRegistrar();

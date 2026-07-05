@@ -51,6 +51,10 @@ private:
     std::string destino;
     std::string fechaSalida;
     std::string fechaLlegada;
+    std::string diaSalida;
+    std::string horaSalida;
+    std::string diaLlegada;
+    std::string horaLlegada;
     std::string precio;
     std::string idAvion;
     std::string estado;

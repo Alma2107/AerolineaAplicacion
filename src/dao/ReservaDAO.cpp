@@ -2,6 +2,7 @@
 #include "PasajeroDAO.h"
 #include <ctime>
 #include <random>
+#include <set>
 #include <sstream>
 
 ReservaDAO::ReservaDAO()
@@ -97,6 +98,77 @@ int ReservaDAO::contarAsientosDisponibles(int idVuelo) const
     int capacidad = ConexionDB::convertirEntero(filas[0][0]);
     int vendidos = ConexionDB::convertirEntero(filas[0][1]);
     return capacidad - vendidos;
+}
+
+std::vector<CatalogoItem> ReservaDAO::listarPlanes() const
+{
+    std::vector<CatalogoItem> items;
+    auto filas = db.consultar("SELECT id_plan,nombre_plan,cargo_extra_plan FROM planes_tarifas ORDER BY id_plan");
+    for (const auto &fila : filas)
+        if (fila.size() >= 3)
+            items.push_back({ConexionDB::convertirEntero(fila[0]), fila[1], ConexionDB::convertirDouble(fila[2])});
+    return items;
+}
+
+std::vector<CatalogoItem> ReservaDAO::listarTiposEquipaje() const
+{
+    std::vector<CatalogoItem> items;
+    auto filas = db.consultar("SELECT id_tipo_equipaje,nombre_tipo,precio_unitario FROM tipos_equipaje ORDER BY id_tipo_equipaje");
+    for (const auto &fila : filas)
+        if (fila.size() >= 3)
+            items.push_back({ConexionDB::convertirEntero(fila[0]), fila[1], ConexionDB::convertirDouble(fila[2])});
+    return items;
+}
+
+std::vector<CatalogoItem> ReservaDAO::listarServicios() const
+{
+    std::vector<CatalogoItem> items;
+    auto filas = db.consultar("SELECT id_servicio,nombre_servicio,precio_servicio FROM servicios_adicionales ORDER BY id_servicio");
+    for (const auto &fila : filas)
+        if (fila.size() >= 3)
+            items.push_back({ConexionDB::convertirEntero(fila[0]), fila[1], ConexionDB::convertirDouble(fila[2])});
+    return items;
+}
+
+std::vector<CatalogoItem> ReservaDAO::listarVuelosDisponibles() const
+{
+    std::vector<CatalogoItem> items;
+    auto filas = db.consultar(
+        "SELECT v.id_vuelo,CONCAT(v.numero_vuelo,' ',v.origen_iata,'-',v.destino_iata,' ',DATE_FORMAT(v.fecha_salida,'%Y-%m-%d %H:%i')),v.precio_base_vuelo "
+        "FROM vuelos v JOIN aviones a ON a.id_avion=v.id_avion "
+        "WHERE v.estado_vuelo<>'Cancelado' AND a.estado='Activo' AND v.fecha_salida>=NOW() "
+        "ORDER BY v.fecha_salida LIMIT 18");
+    for (const auto &fila : filas)
+        if (fila.size() >= 3)
+            items.push_back({ConexionDB::convertirEntero(fila[0]), fila[1], ConexionDB::convertirDouble(fila[2])});
+    return items;
+}
+
+std::vector<std::string> ReservaDAO::listarAsientosDisponibles(int idVuelo) const
+{
+    std::vector<std::string> asientos;
+    auto datos = db.consultar("SELECT a.capacidad FROM vuelos v JOIN aviones a ON a.id_avion=v.id_avion WHERE v.id_vuelo=" + std::to_string(idVuelo) + " LIMIT 1");
+    if (datos.empty() || datos[0].empty())
+        return asientos;
+
+    std::set<std::string> ocupados;
+    auto filasOcupadas = db.consultar("SELECT UPPER(TRIM(numero_asiento)) FROM tickets_detalle WHERE id_vuelo=" + std::to_string(idVuelo) + " AND precio_tramo_pagado>0 AND COALESCE(numero_asiento,'')<>'' AND numero_asiento<>'REEMB'");
+    for (const auto &fila : filasOcupadas)
+        if (!fila.empty())
+            ocupados.insert(fila[0]);
+
+    int capacidad = ConexionDB::convertirEntero(datos[0][0]);
+    const char columnas[] = {'A', 'B', 'C', 'D', 'E', 'F'};
+    for (int i = 0; i < capacidad; ++i)
+    {
+        std::stringstream asiento;
+        asiento << (i / 6 + 1) << columnas[i % 6];
+        if (ocupados.find(asiento.str()) == ocupados.end())
+            asientos.push_back(asiento.str());
+        if ((int)asientos.size() >= 36)
+            break;
+    }
+    return asientos;
 }
 
 std::string ReservaDAO::validarReservaPresencial(const Pasajero &pasajero, int idCliente, int idVuelo,
@@ -237,6 +309,101 @@ Reserva ReservaDAO::crearReservaPresencial(const Pasajero &pasajero, int idClien
         servicio << "INSERT INTO ticket_servicios (id_ticket,id_servicio,precio_servicio_pagado) VALUES ("
                  << reserva.getIdTicket() << "," << idServicio << "," << precioServicio << ")";
         db.ejecutar(servicio.str());
+    }
+
+    return reserva;
+}
+
+Reserva ReservaDAO::crearReservaPresencial(const Pasajero &pasajero, int idCliente, int idVuelo,
+                                           const std::string &asiento, int idPlan,
+                                           int idMetodoPago, const std::vector<int> &tiposEquipaje,
+                                           const std::vector<int> &cantidadesEquipaje,
+                                           const std::vector<int> &servicios)
+{
+    double precioBase = 0;
+    auto vuelo = db.consultar("SELECT precio_base_vuelo FROM vuelos WHERE id_vuelo=" + std::to_string(idVuelo) + " LIMIT 1");
+    if (!vuelo.empty() && !vuelo[0].empty())
+        precioBase = ConexionDB::convertirDouble(vuelo[0][0]);
+
+    std::string codigoReserva = generarCodigoReserva();
+    std::string validacion = validarReservaPresencial(pasajero, idCliente, idVuelo, asiento, idPlan, codigoReserva, precioBase, idMetodoPago);
+    if (validacion != "OK")
+        return Reserva();
+
+    double totalEquipaje = 0;
+    for (int i = 0; i < (int)tiposEquipaje.size(); ++i)
+    {
+        int cantidad = i < (int)cantidadesEquipaje.size() ? cantidadesEquipaje[i] : 1;
+        if (cantidad <= 0)
+            cantidad = 1;
+        auto tipo = db.consultar("SELECT precio_unitario FROM tipos_equipaje WHERE id_tipo_equipaje=" + std::to_string(tiposEquipaje[i]) + " LIMIT 1");
+        if (tipo.empty() || tipo[0].empty())
+            return Reserva();
+        totalEquipaje += ConexionDB::convertirDouble(tipo[0][0]) * cantidad;
+    }
+
+    double totalServicios = 0;
+    for (int idServicio : servicios)
+    {
+        auto servicio = db.consultar("SELECT precio_servicio FROM servicios_adicionales WHERE id_servicio=" + std::to_string(idServicio) + " LIMIT 1");
+        if (servicio.empty() || servicio[0].empty())
+            return Reserva();
+        totalServicios += ConexionDB::convertirDouble(servicio[0][0]);
+    }
+
+    PasajeroDAO pasajeroDAO;
+    Pasajero guardado = pasajeroDAO.registrar(
+        pasajero.getTipoDocumento(), pasajero.getNumeroDocumento(), pasajero.getNombre(),
+        pasajero.getApellido(), pasajero.getFechaNacimiento(), pasajero.requiereAsistenciaEspecial(),
+        pasajero.getDetallesMedicos());
+    if (guardado.getId() == 0)
+        return Reserva();
+
+    std::stringstream orden;
+    orden << "INSERT INTO compras_ordenes (id_cliente,fecha_compra,monto_total_pagado,id_metodo_pago) VALUES ("
+          << idCliente << ",NOW()," << (precioBase + totalEquipaje + totalServicios) << "," << idMetodoPago << ")";
+    if (!db.ejecutar(orden.str()))
+        return Reserva();
+
+    auto idOrden = db.consultar("SELECT id_orden FROM compras_ordenes ORDER BY id_orden DESC LIMIT 1");
+    if (idOrden.empty() || idOrden[0].empty())
+        return Reserva();
+
+    std::stringstream ticket;
+    ticket << "INSERT INTO tickets_detalle (id_orden,id_vuelo,id_pasajero,numero_asiento,id_plan,codigo_reserva_pnr,precio_tramo_pagado) VALUES ("
+           << ConexionDB::convertirEntero(idOrden[0][0]) << "," << idVuelo << "," << guardado.getId() << ",'"
+           << ConexionDB::escapar(asiento) << "'," << idPlan << ",'" << ConexionDB::escapar(codigoReserva) << "'," << precioBase << ")";
+    if (!db.ejecutar(ticket.str()))
+        return Reserva();
+
+    Reserva reserva = buscarPorCodigoReserva(codigoReserva);
+    if (reserva.getIdTicket() == 0)
+        return Reserva();
+
+    for (int i = 0; i < (int)tiposEquipaje.size(); ++i)
+    {
+        int cantidad = i < (int)cantidadesEquipaje.size() ? cantidadesEquipaje[i] : 1;
+        if (cantidad <= 0)
+            cantidad = 1;
+        auto tipo = db.consultar("SELECT precio_unitario FROM tipos_equipaje WHERE id_tipo_equipaje=" + std::to_string(tiposEquipaje[i]) + " LIMIT 1");
+        double precioUnitario = (!tipo.empty() && !tipo[0].empty()) ? ConexionDB::convertirDouble(tipo[0][0]) : 0;
+        std::stringstream etiqueta;
+        etiqueta << "TAG-" << reserva.getIdTicket() << "-" << (i + 1);
+        std::stringstream equipaje;
+        equipaje << "INSERT INTO ticket_equipajes (id_ticket,id_tipo_equipaje,codigo_etiqueta,cantidad,precio_pagado,estado_equipaje) VALUES ("
+                 << reserva.getIdTicket() << "," << tiposEquipaje[i] << ",'" << etiqueta.str() << "',"
+                 << cantidad << "," << (precioUnitario * cantidad) << ",'Registrado')";
+        db.ejecutar(equipaje.str());
+    }
+
+    for (int idServicio : servicios)
+    {
+        auto servicio = db.consultar("SELECT precio_servicio FROM servicios_adicionales WHERE id_servicio=" + std::to_string(idServicio) + " LIMIT 1");
+        double precioServicio = (!servicio.empty() && !servicio[0].empty()) ? ConexionDB::convertirDouble(servicio[0][0]) : 0;
+        std::stringstream sqlServicio;
+        sqlServicio << "INSERT INTO ticket_servicios (id_ticket,id_servicio,precio_servicio_pagado) VALUES ("
+                    << reserva.getIdTicket() << "," << idServicio << "," << precioServicio << ")";
+        db.ejecutar(sqlServicio.str());
     }
 
     return reserva;

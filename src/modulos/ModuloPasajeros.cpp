@@ -1,8 +1,39 @@
 #include "ModuloPasajeros.h"
 #include "ComponentesUI.h"
 #include "raylib.h"
+#include <algorithm>
 #include <sstream>
 #include <vector>
+
+static bool contieneId(const std::vector<int> &valores, int id)
+{
+    return std::find(valores.begin(), valores.end(), id) != valores.end();
+}
+
+static void alternarId(std::vector<int> &valores, int id)
+{
+    auto it = std::find(valores.begin(), valores.end(), id);
+    if (it == valores.end())
+        valores.push_back(id);
+    else
+        valores.erase(it);
+}
+
+static double precioSeleccionado(const std::vector<CatalogoItem> &items, int id)
+{
+    for (const CatalogoItem &item : items)
+        if (item.id == id)
+            return item.precio;
+    return 0;
+}
+
+static std::string nombreSeleccionado(const std::vector<CatalogoItem> &items, int id)
+{
+    for (const CatalogoItem &item : items)
+        if (item.id == id)
+            return item.nombre;
+    return "";
+}
 
 ModuloPasajeros::ModuloPasajeros()
     : mensaje("Modulo activo."), vista(0), foco(0), codigoReserva("AB1234"), tipoDoc("DNI"), documento("50000111"),
@@ -23,6 +54,14 @@ void ModuloPasajeros::refrescarAvisos()
 
 void ModuloPasajeros::refrescarDatos()
 {
+    if (vista == 1)
+    {
+        planesCache = reservaDAO.listarPlanes();
+        vuelosCache = reservaDAO.listarVuelosDisponibles();
+        tiposEquipajeCache = reservaDAO.listarTiposEquipaje();
+        serviciosCache = reservaDAO.listarServicios();
+        asientosCache = reservaDAO.listarAsientosDisponibles(ConexionDB::convertirEntero(idVuelo));
+    }
     if (vista == 2)
         reservasCache = reservaDAO.listar();
     if (vista == 4)
@@ -100,7 +139,7 @@ void ModuloPasajeros::dibujarNuevaReserva()
 
     if (UI::input(Rectangle{240, 185, 120, 46}, "Tipo doc", tipoDoc, foco == 2))
         foco = 2;
-    if (UI::input(Rectangle{390, 185, 180, 46}, "Documento", documento, foco == 3))
+    if (UI::input(Rectangle{390, 185, 180, 46}, "Documento DNI", documento, foco == 3))
         foco = 3;
     if (UI::input(Rectangle{600, 185, 190, 46}, "Nombre", nombre, foco == 4))
         foco = 4;
@@ -116,35 +155,82 @@ void ModuloPasajeros::dibujarNuevaReserva()
 
     if (UI::input(Rectangle{240, 335, 120, 46}, "ID cliente", idCliente, foco == 9))
         foco = 9;
-    if (UI::input(Rectangle{390, 335, 120, 46}, "ID vuelo", idVuelo, foco == 10))
-        foco = 10;
-    if (UI::input(Rectangle{540, 335, 120, 46}, "Asiento", asiento, foco == 11))
-        foco = 11;
-    if (UI::input(Rectangle{690, 335, 120, 46}, "ID plan", idPlan, foco == 12))
-        foco = 12;
-    if (UI::input(Rectangle{840, 335, 120, 46}, "Pago", idMetodoPago, foco == 13))
+    DrawText("Seleccione vuelo", 390, 316, 17, UI::muted());
+    int xVuelo = 390;
+    int yVuelo = 338;
+    for (int i = 0; i < (int)vuelosCache.size() && i < 4; ++i)
+    {
+        const CatalogoItem &vuelo = vuelosCache[i];
+        Rectangle item = {(float)xVuelo, (float)yVuelo, 248, 34};
+        bool elegido = std::to_string(vuelo.id) == idVuelo;
+        if (UI::botonSecundario(item, vuelo.nombre, elegido ? UI::green() : UI::muted()))
+        {
+            idVuelo = std::to_string(vuelo.id);
+            precio = std::to_string((int)vuelo.precio);
+            asientosCache = reservaDAO.listarAsientosDisponibles(vuelo.id);
+            if (!asientosCache.empty())
+                asiento = asientosCache[0];
+        }
+        yVuelo += 40;
+    }
+    DrawText("Asientos libres", 660, 316, 17, UI::muted());
+    int xAsiento = 660;
+    int yAsiento = 338;
+    for (int i = 0; i < (int)asientosCache.size() && i < 12; ++i)
+    {
+        Rectangle item = {(float)xAsiento, (float)yAsiento, 48, 30};
+        if (UI::botonSecundario(item, asientosCache[i], asientosCache[i] == asiento ? UI::green() : UI::muted()))
+            asiento = asientosCache[i];
+        xAsiento += 54;
+        if (xAsiento > 920)
+        {
+            xAsiento = 660;
+            yAsiento += 36;
+        }
+    }
+    DrawText("Plan", 960, 316, 17, UI::muted());
+    int yPlan = 338;
+    for (int i = 0; i < (int)planesCache.size() && i < 4; ++i)
+    {
+        const CatalogoItem &plan = planesCache[i];
+        Rectangle item = {960, (float)yPlan, 190, 32};
+        if (UI::botonSecundario(item, plan.nombre, std::to_string(plan.id) == idPlan ? UI::green() : UI::muted()))
+            idPlan = std::to_string(plan.id);
+        yPlan += 38;
+    }
+    if (UI::input(Rectangle{1040, 185, 120, 46}, "Pago", idMetodoPago, foco == 13))
         foco = 13;
 
-    if (UI::input(Rectangle{240, 410, 120, 46}, "Tipo equip.", idTipoEquipaje, foco == 16))
-        foco = 16;
-    if (UI::input(Rectangle{390, 410, 120, 46}, "Cant.", cantidadEquipaje, foco == 17))
-        foco = 17;
-    if (UI::input(Rectangle{540, 410, 120, 46}, "$ equip.", precioEquipaje, foco == 18))
-        foco = 18;
-    if (UI::input(Rectangle{690, 410, 120, 46}, "Servicio", idServicio, foco == 19))
-        foco = 19;
-    if (UI::input(Rectangle{840, 410, 120, 46}, "$ servicio", precioServicio, foco == 20))
-        foco = 20;
+    DrawText("Equipaje adicional", 240, 500, 17, UI::muted());
+    int yEquipaje = 525;
+    for (int i = 0; i < (int)tiposEquipajeCache.size() && i < 4; ++i)
+    {
+        const CatalogoItem &tipo = tiposEquipajeCache[i];
+        std::stringstream texto;
+        texto << tipo.nombre << " $" << (int)tipo.precio;
+        if (UI::botonSecundario(Rectangle{240, (float)yEquipaje, 340, 30}, texto.str(), contieneId(equipajesSeleccionados, tipo.id) ? UI::green() : UI::muted()))
+            alternarId(equipajesSeleccionados, tipo.id);
+        yEquipaje += 36;
+    }
+    DrawText("Servicios", 610, 500, 17, UI::muted());
+    int yServicio = 525;
+    for (int i = 0; i < (int)serviciosCache.size() && i < 5; ++i)
+    {
+        const CatalogoItem &servicio = serviciosCache[i];
+        std::stringstream texto;
+        texto << servicio.nombre << " $" << (int)servicio.precio;
+        if (UI::botonSecundario(Rectangle{610, (float)yServicio, 360, 30}, texto.str(), contieneId(serviciosSeleccionados, servicio.id) ? UI::green() : UI::muted()))
+            alternarId(serviciosSeleccionados, servicio.id);
+        yServicio += 36;
+    }
 
-    if (UI::input(Rectangle{240, 485, 170, 46}, "Codigo reserva", codigoReservaNueva, foco == 14))
-        foco = 14;
-    if (UI::input(Rectangle{440, 485, 150, 46}, "Precio", precio, foco == 15))
+    if (UI::input(Rectangle{240, 410, 150, 46}, "Precio base", precio, foco == 15))
         foco = 15;
 
     if (foco == 2)
         UI::capturarTexto(tipoDoc, 12);
     if (foco == 3)
-        UI::capturarTexto(documento, 20);
+        UI::capturarTexto(documento, 8);
     if (foco == 4)
         UI::capturarTexto(nombre, 35);
     if (foco == 5)
@@ -157,47 +243,28 @@ void ModuloPasajeros::dibujarNuevaReserva()
         UI::capturarTexto(detalles, 60);
     if (foco == 9)
         UI::capturarTexto(idCliente, 8);
-    if (foco == 10)
-        UI::capturarTexto(idVuelo, 8);
-    if (foco == 11)
-        UI::capturarTexto(asiento, 6);
-    if (foco == 12)
-        UI::capturarTexto(idPlan, 8);
     if (foco == 13)
         UI::capturarTexto(idMetodoPago, 8);
-    if (foco == 14)
-        UI::capturarTexto(codigoReservaNueva, 12);
     if (foco == 15)
         UI::capturarTexto(precio, 12);
-    if (foco == 16)
-        UI::capturarTexto(idTipoEquipaje, 8);
-    if (foco == 17)
-        UI::capturarTexto(cantidadEquipaje, 8);
-    if (foco == 18)
-        UI::capturarTexto(precioEquipaje, 12);
-    if (foco == 19)
-        UI::capturarTexto(idServicio, 8);
-    if (foco == 20)
-        UI::capturarTexto(precioServicio, 12);
 
     Pasajero pasajero(0, tipoDoc, documento, nombre, apellido, fechaNacimiento, asistencia == "1", detalles, false);
-    if (UI::botonSecundario(Rectangle{620, 485, 160, 44}, "Generar codigo", UI::green()))
+    if (UI::botonSecundario(Rectangle{420, 410, 180, 44}, "Ver disponibilidad", UI::green()))
     {
-        codigoReservaNueva = reservaDAO.generarCodigoReserva();
         int disponibles = reservaDAO.contarAsientosDisponibles(ConexionDB::convertirEntero(idVuelo));
         estadoAsientos = disponibles >= 0 ? "Asientos libres para venta presencial: " + std::to_string(disponibles)
                                           : "No se pudo calcular disponibilidad del vuelo.";
-        mensaje = "Codigo generado. Use ese codigo para el check-in.";
+        asientosCache = reservaDAO.listarAsientosDisponibles(ConexionDB::convertirEntero(idVuelo));
+        mensaje = disponibles > 0 ? "Vuelo disponible. Seleccione un asiento libre." : "Avion lleno: informar al cliente que debe elegir otro dia/vuelo.";
     }
 
-    if (UI::botonSecundario(Rectangle{800, 485, 170, 44}, "Validar reserva", UI::green()))
+    if (UI::botonSecundario(Rectangle{620, 410, 170, 44}, "Validar reserva", UI::green()))
     {
+        std::string codigoTemporal = reservaDAO.generarCodigoReserva();
         mensaje = reservaDAO.validarReservaPresencial(
             pasajero, ConexionDB::convertirEntero(idCliente), ConexionDB::convertirEntero(idVuelo),
-            asiento, ConexionDB::convertirEntero(idPlan), codigoReservaNueva, ConexionDB::convertirDouble(precio),
-            ConexionDB::convertirEntero(idMetodoPago), ConexionDB::convertirEntero(idTipoEquipaje),
-            ConexionDB::convertirEntero(cantidadEquipaje), ConexionDB::convertirDouble(precioEquipaje),
-            ConexionDB::convertirEntero(idServicio), ConexionDB::convertirDouble(precioServicio));
+            asiento, ConexionDB::convertirEntero(idPlan), codigoTemporal, ConexionDB::convertirDouble(precio),
+            ConexionDB::convertirEntero(idMetodoPago));
         if (mensaje == "OK")
             mensaje = "Validacion API BD: reserva apta para guardar.";
         else
@@ -207,26 +274,24 @@ void ModuloPasajeros::dibujarNuevaReserva()
                                           : "No se pudo calcular disponibilidad del vuelo.";
     }
 
-    if (UI::boton(Rectangle{990, 485, 170, 44}, "Guardar reserva", UI::green()))
+    if (UI::boton(Rectangle{810, 410, 170, 44}, "Guardar reserva", UI::green()))
     {
+        std::string codigoTemporal = reservaDAO.generarCodigoReserva();
         std::string validacion = reservaDAO.validarReservaPresencial(
             pasajero, ConexionDB::convertirEntero(idCliente), ConexionDB::convertirEntero(idVuelo),
-            asiento, ConexionDB::convertirEntero(idPlan), codigoReservaNueva, ConexionDB::convertirDouble(precio),
-            ConexionDB::convertirEntero(idMetodoPago), ConexionDB::convertirEntero(idTipoEquipaje),
-            ConexionDB::convertirEntero(cantidadEquipaje), ConexionDB::convertirDouble(precioEquipaje),
-            ConexionDB::convertirEntero(idServicio), ConexionDB::convertirDouble(precioServicio));
+            asiento, ConexionDB::convertirEntero(idPlan), codigoTemporal, ConexionDB::convertirDouble(precio),
+            ConexionDB::convertirEntero(idMetodoPago));
         if (validacion != "OK")
         {
             mensaje = "Validacion API BD: " + validacion;
-            DrawText(mensaje.c_str(), 240, 555, 19, RED);
+            DrawText(mensaje.c_str(), 240, 720, 19, RED);
             return;
         }
+        std::vector<int> cantidades(equipajesSeleccionados.size(), 1);
         Reserva reserva = reservaDAO.crearReservaPresencial(
             pasajero, ConexionDB::convertirEntero(idCliente), ConexionDB::convertirEntero(idVuelo),
-            asiento, ConexionDB::convertirEntero(idPlan), codigoReservaNueva, ConexionDB::convertirDouble(precio),
-            ConexionDB::convertirEntero(idMetodoPago), ConexionDB::convertirEntero(idTipoEquipaje),
-            ConexionDB::convertirEntero(cantidadEquipaje), ConexionDB::convertirDouble(precioEquipaje),
-            ConexionDB::convertirEntero(idServicio), ConexionDB::convertirDouble(precioServicio));
+            asiento, ConexionDB::convertirEntero(idPlan), ConexionDB::convertirEntero(idMetodoPago),
+            equipajesSeleccionados, cantidades, serviciosSeleccionados);
         mensaje = reserva.getIdTicket() != 0 ? "Reserva guardada en BD con codigo " + reserva.getCodigoReserva() : "No se pudo guardar la reserva.";
         if (reserva.getIdTicket() != 0)
         {
@@ -237,8 +302,16 @@ void ModuloPasajeros::dibujarNuevaReserva()
         }
     }
 
-    DrawText(mensaje.c_str(), 240, 555, 19, mensaje.find("Validacion API BD: reserva apta") != std::string::npos || mensaje.find("guardada") != std::string::npos || mensaje.find("Codigo generado") != std::string::npos ? UI::green() : RED);
-    DrawText(estadoAsientos.c_str(), 240, 585, 18, UI::muted());
+    double total = ConexionDB::convertirDouble(precio) + precioSeleccionado(planesCache, ConexionDB::convertirEntero(idPlan));
+    for (int id : equipajesSeleccionados)
+        total += precioSeleccionado(tiposEquipajeCache, id);
+    for (int id : serviciosSeleccionados)
+        total += precioSeleccionado(serviciosCache, id);
+    std::stringstream totalTexto;
+    totalTexto << "Total estimado: $" << (int)total << " | Vuelo " << nombreSeleccionado(vuelosCache, ConexionDB::convertirEntero(idVuelo)) << " | Asiento " << asiento;
+    DrawText(totalTexto.str().c_str(), 240, 690, 18, UI::navy());
+    DrawText(mensaje.c_str(), 240, 720, 19, mensaje.find("apta") != std::string::npos || mensaje.find("guardada") != std::string::npos || mensaje.find("disponible") != std::string::npos ? UI::green() : RED);
+    DrawText(estadoAsientos.c_str(), 240, 750, 18, UI::muted());
 }
 
 void ModuloPasajeros::dibujarCancelaciones()

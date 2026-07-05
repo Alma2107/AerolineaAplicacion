@@ -44,6 +44,13 @@ private:
     std::vector<Reserva> reservasCache;
     std::vector<Pasajero> pasajerosCache;
     std::vector<Notificacion> notificacionesCache;
+    std::vector<CatalogoItem> planesCache;
+    std::vector<CatalogoItem> vuelosCache;
+    std::vector<CatalogoItem> tiposEquipajeCache;
+    std::vector<CatalogoItem> serviciosCache;
+    std::vector<std::string> asientosCache;
+    std::vector<int> equipajesSeleccionados;
+    std::vector<int> serviciosSeleccionados;
 
     void dibujarNavegacion();
     void dibujarCheckIn();

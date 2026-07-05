@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <map>
 #include <sstream>
+#include <ctime>
 #include <vector>
 
 struct PuntoClima
@@ -92,6 +93,24 @@ static std::string formato(double valor, int decimales, const std::string &sufij
     std::stringstream ss;
     ss << std::fixed << std::setprecision(decimales) << valor << sufijo;
     return ss.str();
+}
+
+static std::string sumarDiasIso(int dias)
+{
+    time_t ahora = time(NULL) + (time_t)dias * 24 * 60 * 60;
+    tm local;
+    localtime_s(&local, &ahora);
+    char buffer[11];
+    strftime(buffer, sizeof(buffer), "%Y-%m-%d", &local);
+    return std::string(buffer);
+}
+
+static std::string fechaHora(const std::string &dia, const std::string &hora)
+{
+    std::string h = hora;
+    if (h.size() == 5)
+        h += ":00";
+    return dia + " " + h;
 }
 
 static std::string condicionWmo(int codigo)
@@ -238,7 +257,8 @@ static void dibujarBarra(Rectangle rect, double valor, double maximo, Color colo
 
 ModuloVuelos::ModuloVuelos()
     : mensaje("Modulo activo."), vista(0), foco(0), numero("JA2001"), origen("AEP"), destino("MAD"),
-      fechaSalida("2026-09-01 08:30:00"), fechaLlegada("2026-09-01 23:45:00"), precio("95000"),
+      fechaSalida("2026-09-01 08:30:00"), fechaLlegada("2026-09-01 23:45:00"),
+      diaSalida("2026-09-01"), horaSalida("08:30"), diaLlegada("2026-09-01"), horaLlegada("23:45"), precio("95000"),
       idAvion("1"), estado("Programado"), accionIdVuelo("1"), accionIdAvion("2"),
       accionFechaSalida("2026-09-02 10:00:00"), accionFechaLlegada("2026-09-02 12:15:00"),
       accionMotivo("clima"), climaIata("AEP"), filtroHistorial(""), vistaAnterior(-1), notificacionesNoLeidas(0)
@@ -299,10 +319,37 @@ void ModuloVuelos::dibujarCrearVuelo()
     if (UI::input(Rectangle{720, 185, 190, 46}, "Destino IATA", destino, foco == 3))
         foco = 3;
 
-    if (UI::input(Rectangle{240, 275, 310, 46}, "Fecha salida YYYY-MM-DD HH:MM:SS", fechaSalida, foco == 4))
+    if (UI::input(Rectangle{240, 275, 180, 46}, "Dia salida", diaSalida, foco == 4))
         foco = 4;
-    if (UI::input(Rectangle{580, 275, 310, 46}, "Fecha llegada YYYY-MM-DD HH:MM:SS", fechaLlegada, foco == 5))
+    if (UI::input(Rectangle{450, 275, 120, 46}, "Hora salida", horaSalida, foco == 5))
         foco = 5;
+    if (UI::input(Rectangle{610, 275, 180, 46}, "Dia llegada", diaLlegada, foco == 9))
+        foco = 9;
+    if (UI::input(Rectangle{820, 275, 120, 46}, "Hora llegada", horaLlegada, foco == 10))
+        foco = 10;
+
+    DrawText("Calendario rapido", 960, 255, 16, UI::muted());
+    int calX = 960;
+    int calY = 278;
+    for (int i = 0; i < 14; ++i)
+    {
+        std::string dia = sumarDiasIso(i);
+        Rectangle item = {(float)calX, (float)calY, 86, 28};
+        bool activo = dia == diaSalida || dia == diaLlegada;
+        if (UI::botonSecundario(item, dia.substr(5), activo ? UI::blue() : UI::muted()))
+        {
+            if (foco == 9 || IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT))
+                diaLlegada = dia;
+            else
+                diaSalida = dia;
+        }
+        calX += 92;
+        if (calX > 1240)
+        {
+            calX = 960;
+            calY += 34;
+        }
+    }
 
     if (UI::input(Rectangle{240, 365, 190, 46}, "ID aeronave", idAvion, foco == 6))
         foco = 6;
@@ -318,9 +365,13 @@ void ModuloVuelos::dibujarCrearVuelo()
     if (foco == 3)
         UI::capturarTexto(destino, 3);
     if (foco == 4)
-        UI::capturarTexto(fechaSalida);
+        UI::capturarTexto(diaSalida, 10);
     if (foco == 5)
-        UI::capturarTexto(fechaLlegada);
+        UI::capturarTexto(horaSalida, 8);
+    if (foco == 9)
+        UI::capturarTexto(diaLlegada, 10);
+    if (foco == 10)
+        UI::capturarTexto(horaLlegada, 8);
     if (foco == 6)
         UI::capturarTexto(idAvion, 5);
     if (foco == 7)
@@ -330,6 +381,8 @@ void ModuloVuelos::dibujarCrearVuelo()
 
     std::string origenNormalizado = normalizarIata(origen);
     std::string destinoNormalizado = normalizarIata(destino);
+    fechaSalida = fechaHora(diaSalida, horaSalida);
+    fechaLlegada = fechaHora(diaLlegada, horaLlegada);
     Vuelo vuelo(0, numero, origenNormalizado, destinoNormalizado, fechaSalida, fechaLlegada, ConexionDB::convertirDouble(precio), estado, ConexionDB::convertirEntero(idAvion));
 
     DrawText("Aeronaves disponibles", 240, 650, 20, UI::navy());
@@ -500,10 +553,18 @@ void ModuloVuelos::dibujarAcciones()
 
     if (vista == 1)
     {
-        if (UI::input(Rectangle{470, 180, 200, 46}, "Nuevo ID avion", accionIdAvion, foco == 21))
-            foco = 21;
-        if (foco == 21)
-            UI::capturarTexto(accionIdAvion, 8);
+        DrawText("Seleccione aeronave activa", 470, 160, 17, UI::muted());
+        int yAvion = 188;
+        for (int i = 0; i < (int)avionesDisponiblesCache.size() && i < 8; ++i)
+        {
+            const Avion &avion = avionesDisponiblesCache[i];
+            std::stringstream texto;
+            texto << "#" << avion.getId() << " " << avion.getModelo() << " (" << avion.getCapacidad() << ")";
+            Rectangle item = {470, (float)yAvion, 330, 32};
+            if (UI::botonSecundario(item, texto.str(), std::to_string(avion.getId()) == accionIdAvion ? UI::blue() : UI::muted()))
+                accionIdAvion = std::to_string(avion.getId());
+            yAvion += 38;
+        }
         if (UI::boton(Rectangle{240, 265, 210, 42}, "Asignar avion", UI::blue()))
         {
             bool ok = vueloDAO.asignarAvion(ConexionDB::convertirEntero(accionIdVuelo), ConexionDB::convertirEntero(accionIdAvion));
@@ -598,6 +659,10 @@ void ModuloVuelos::dibujarListado()
 {
     DrawText("Historial de vuelos", 240, 95, 30, UI::navy());
     DrawText("Ultimos vuelos cargados y su estado operativo", 240, 130, 17, UI::muted());
+    if (UI::input(Rectangle{640, 92, 340, 42}, "Buscar", filtroHistorial, foco == 40))
+        foco = 40;
+    if (foco == 40)
+        UI::capturarTexto(filtroHistorial, 40);
 
     Rectangle panel = {240, 165, 740, 540};
     DrawRectangleRounded(Rectangle{panel.x, panel.y + 6, panel.width, panel.height}, 0.035f, 8, Color{224, 232, 242, 255});
@@ -606,7 +671,16 @@ void ModuloVuelos::dibujarListado()
     DrawRectangleRounded(Rectangle{panel.x, panel.y, 8, panel.height}, 0.03f, 8, UI::blue());
 
     DrawText("Listado general", 265, 190, 22, UI::navy());
-    std::string total = std::to_string(vuelosCache.size()) + " registros";
+    std::string filtro = minusculas(filtroHistorial);
+    std::vector<Vuelo> vuelosFiltrados;
+    for (const Vuelo &vuelo : vuelosCache)
+    {
+        std::string texto = minusculas(std::to_string(vuelo.getId()) + " " + vuelo.getNumero() + " " + vuelo.getOrigen() + " " + vuelo.getDestino() + " " + vuelo.getFechaSalida() + " " + vuelo.getEstado() + " " + std::to_string(vuelo.getIdAvion()));
+        if (filtro.empty() || texto.find(filtro) != std::string::npos)
+            vuelosFiltrados.push_back(vuelo);
+    }
+
+    std::string total = std::to_string(vuelosFiltrados.size()) + " registros";
     int totalAncho = MeasureText(total.c_str(), 16);
     Rectangle contador = {panel.x + panel.width - totalAncho - 52, 184, (float)totalAncho + 28, 32};
     DrawRectangleRounded(contador, 0.24f, 8, Fade(UI::blue(), 0.12f));
@@ -621,7 +695,7 @@ void ModuloVuelos::dibujarListado()
     DrawText("Avion", 765, 253, 15, UI::blue());
     DrawText("Estado", 840, 253, 15, UI::blue());
 
-    if (vuelosCache.empty())
+    if (vuelosFiltrados.empty())
     {
         DrawRectangleRounded(Rectangle{265, 315, 690, 95}, 0.04f, 8, Color{248, 250, 253, 255});
         DrawRectangleLinesEx(Rectangle{265, 315, 690, 95}, 1, UI::border());
@@ -631,9 +705,9 @@ void ModuloVuelos::dibujarListado()
     }
 
     int y = 300;
-    for (int i = 0; i < (int)vuelosCache.size() && i < 7; ++i)
+    for (int i = 0; i < (int)vuelosFiltrados.size() && i < 7; ++i)
     {
-        const Vuelo &vuelo = vuelosCache[i];
+        const Vuelo &vuelo = vuelosFiltrados[i];
         Rectangle fila = {265, (float)y, 690, 52};
         Color fondo = i % 2 == 0 ? Color{248, 250, 253, 255} : WHITE;
         Color estadoColor = vuelo.getEstado() == "Cancelado" ? RED : vuelo.getEstado() == "Reprogramado" ? UI::orange()
