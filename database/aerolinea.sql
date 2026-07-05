@@ -450,28 +450,8 @@ CREATE TABLE `notificaciones` (
   `tipo` varchar(50) NOT NULL,
   `mensaje` text NOT NULL,
   `leida` tinyint(1) NOT NULL DEFAULT 0,
-  `fecha` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Estructura de tabla para la tabla `objetos_perdidos`
---
-
-CREATE TABLE `objetos_perdidos` (
-  `id_objeto` int(11) NOT NULL AUTO_INCREMENT,
-  `tipo` varchar(20) NOT NULL DEFAULT 'Objeto',
-  `descripcion` varchar(200) NOT NULL,
-  `id_avion` int(11) NOT NULL,
-  `numero_asiento` varchar(10) DEFAULT NULL,
-  `codigo_equipaje` varchar(50) DEFAULT NULL,
-  `fecha_hallazgo` datetime NOT NULL,
-  `ubicacion_exacta` varchar(120) NOT NULL,
-  `empleado_hallazgo` varchar(80) NOT NULL,
-  `estado` varchar(40) NOT NULL DEFAULT 'Pendiente verificacion',
-  `fecha_registro` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id_objeto`)
+  `fecha` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id_notificacion`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -554,7 +534,9 @@ ALTER TABLE `tickets_detalle`
 ALTER TABLE `ticket_equipajes`
   ADD PRIMARY KEY (`id_ticket_equipaje`),
   ADD KEY `id_ticket` (`id_ticket`),
-  ADD KEY `id_tipo_equipaje` (`id_tipo_equipaje`);
+  ADD KEY `id_tipo_equipaje` (`id_tipo_equipaje`),
+  ADD KEY `codigo_etiqueta` (`codigo_etiqueta`),
+  ADD KEY `estado_equipaje` (`estado_equipaje`);
 
 --
 -- Indices de la tabla `ticket_servicios`

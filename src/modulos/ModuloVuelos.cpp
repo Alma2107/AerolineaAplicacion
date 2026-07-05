@@ -207,8 +207,8 @@ static DatosClima consultarClimaTiempoReal(const std::string &iataSolicitado)
 static void dibujarHeroAereo(Rectangle rect, Color color)
 {
     DrawRectangleGradientV((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height, Fade(color, 0.95f), Color{6, 23, 44, 255});
-    DrawCircleGradient((int)(rect.x + rect.width - 80), (int)(rect.y + 44), 112, Fade(WHITE, 0.28f), Fade(WHITE, 0.0f));
-    DrawCircleGradient((int)(rect.x + 120), (int)(rect.y + rect.height - 10), 150, Fade(Color{23, 178, 148, 255}, 0.24f), Fade(color, 0.0f));
+    DrawCircleGradient(Vector2{(float)rect.x + rect.width - 80.0f, (float)rect.y + 44.0f}, 112, Fade(WHITE, 0.28f), Fade(WHITE, 0.0f));
+    DrawCircleGradient(Vector2{(float)rect.x + 120.0f, (float)rect.y + rect.height - 10.0f}, 150, Fade(Color{23, 178, 148, 255}, 0.24f), Fade(color, 0.0f));
 
     Vector2 nose = {rect.x + rect.width - 70, rect.y + rect.height * 0.48f};
     Vector2 tail = {rect.x + 90, rect.y + rect.height * 0.58f};
@@ -405,7 +405,7 @@ void ModuloVuelos::dibujarAcciones()
         DrawText("Centro meteorologico operativo", 240, 95, 30, UI::navy());
         DrawText("Datos actuales del mismo dia para aeropuertos de la base", 240, 130, 17, UI::muted());
 
-        UI::imagenCubierta("assets/weather_live.png", Rectangle{240, 160, 740, 124}, WHITE);
+        UI::imagenCubierta("src/assets/weather_live.png", Rectangle{240, 160, 740, 124}, WHITE);
         DrawRectangleGradientH(240, 160, 420, 124, Fade(UI::navy(), 0.82f), Fade(UI::navy(), 0.0f));
         DrawText("EN VIVO", 270, 184, 18, Color{23, 178, 148, 255});
         DrawText("Clima de ruta y riesgo operacional", 270, 214, 28, WHITE);

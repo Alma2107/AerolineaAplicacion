@@ -63,17 +63,46 @@ std::string ConexionDB::comandoMysql(const std::string &sql, bool usarBase) cons
     }
 
     std::stringstream comando;
-    comando << mysqlExe << " --default-character-set=utf8mb4 --protocol=tcp -h 127.0.0.1 -P 3306 --connect-timeout=5 -N -B -u root ";
+    comando << "\"" << mysqlExe << "\" --default-character-set=utf8mb4 -h 127.0.0.1 -P 3306 -N -B -u root";
     if (usarBase)
-        comando << "--database=" << nombreBase << " ";
-    comando << "-e \"" << limpio << "\" 2>>conexion_aerogest.log";
+        comando << " --database=" << nombreBase;
+    comando << " -e \"" << limpio << "\"";
     return comando.str();
 }
 
 bool ConexionDB::conectar()
 {
-    conectada = archivoExiste(mysqlExe) && ejecutar("SELECT 1");
-    return conectada;
+    if (!archivoExiste(mysqlExe))
+    {
+        std::ofstream log("logs/conexion_aerogest.log", std::ios::app);
+        log << "Archivo mysql.exe no encontrado: " << mysqlExe << std::endl;
+        return false;
+    }
+    
+    std::string tempFile = "build\\temp_test.txt";
+    std::string cmd = "\"" + mysqlExe + "\" -h 127.0.0.1 -u root -e \"SELECT 1\" > \"" + tempFile + "\" 2>&1";
+    
+    int resultado = std::system(cmd.c_str());
+    
+    bool ok = false;
+    if (archivoExiste(tempFile))
+    {
+        std::ifstream archivo(tempFile);
+        std::string contenido;
+        if (std::getline(archivo, contenido) && contenido == "1")
+            ok = true;
+        archivo.close();
+        std::remove(tempFile.c_str());
+    }
+    
+    if (!ok)
+    {
+        std::ofstream log("logs/conexion_aerogest.log", std::ios::app);
+        log << "No se pudo conectar a MySQL en 127.0.0.1. Verifique que XAMPP este ejecutando con MySQL iniciado." << std::endl;
+    }
+    
+    conectada = ok;
+    return ok;
 }
 
 void ConexionDB::desconectar()
@@ -96,9 +125,23 @@ bool ConexionDB::ejecutar(const std::string &sql) const
     if (!archivoExiste(mysqlExe))
         return false;
 
-    std::string comando = comandoMysql(sql, true) + " >NUL";
-    int resultado = std::system(comando.c_str());
-    return resultado == 0;
+    std::string tempFile = "build\\temp_exec.txt";
+    std::string cmd = "\"" + mysqlExe + "\" -h 127.0.0.1 -u root --database=" + nombreBase + " -e \"" + sql + "\" > \"" + tempFile + "\" 2>&1";
+    
+    int resultado = std::system(cmd.c_str());
+    
+    bool ok = (resultado == 0);
+    
+    if (archivoExiste(tempFile))
+        std::remove(tempFile.c_str());
+    
+    if (!ok)
+    {
+        std::ofstream log("logs/conexion_aerogest.log", std::ios::app);
+        log << "Error al ejecutar SQL. Codigo: " << resultado << " - SQL: " << sql << std::endl;
+    }
+    
+    return ok;
 }
 
 std::vector<std::vector<std::string>> ConexionDB::consultar(const std::string &sql) const
@@ -107,28 +150,38 @@ std::vector<std::vector<std::string>> ConexionDB::consultar(const std::string &s
     if (!archivoExiste(mysqlExe))
         return filas;
 
-    FILE *pipe = _popen(comandoMysql(sql, true).c_str(), "r");
-    if (!pipe)
-        return filas;
-
-    char buffer[4096];
-    while (fgets(buffer, sizeof(buffer), pipe) != nullptr)
+    std::string tempFile = "build\\temp_query.txt";
+    std::string sqlLimpio = sql;
+    for (char &c : sqlLimpio)
     {
-        std::string linea(buffer);
-        while (!linea.empty() && (linea.back() == '\n' || linea.back() == '\r'))
-            linea.pop_back();
-
-        std::vector<std::string> columnas;
-        std::stringstream ss(linea);
-        std::string columna;
-        while (std::getline(ss, columna, '\t'))
-            columnas.push_back(columna == "NULL" ? "" : columna);
-        if (!linea.empty() && linea.back() == '\t')
-            columnas.push_back("");
-        filas.push_back(columnas);
+        if (c == '"')
+            c = '\'';
     }
+    
+    std::string cmd = "\"" + mysqlExe + "\" -h 127.0.0.1 -u root --database=" + nombreBase + " -N -B -e \"" + sqlLimpio + "\" > \"" + tempFile + "\" 2>&1";
+    
+    int resultado = std::system(cmd.c_str());
+    
+    if (resultado == 0 && archivoExiste(tempFile))
+    {
+        std::ifstream archivo(tempFile);
+        std::string linea;
+        while (std::getline(archivo, linea))
+        {
+            std::vector<std::string> columnas;
+            std::stringstream ss(linea);
+            std::string columna;
+            while (std::getline(ss, columna, '\t'))
+                columnas.push_back(columna == "NULL" ? "" : columna);
+            if (!linea.empty())
+                filas.push_back(columnas);
+        }
+        archivo.close();
+    }
+    
+    if (archivoExiste(tempFile))
+        std::remove(tempFile.c_str());
 
-    _pclose(pipe);
     return filas;
 }
 
@@ -167,23 +220,6 @@ bool ConexionDB::inicializar()
                  "KEY idx_notificaciones_modulo (modulo_destino, leida, fecha)"
                  ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
 
-        ejecutar("CREATE TABLE IF NOT EXISTS objetos_perdidos ("
-                 "id_objeto INT NOT NULL AUTO_INCREMENT,"
-                 "tipo VARCHAR(20) NOT NULL DEFAULT 'Objeto',"
-                 "descripcion VARCHAR(200) NOT NULL,"
-                 "id_avion INT NOT NULL,"
-                 "numero_asiento VARCHAR(10) DEFAULT NULL,"
-                 "codigo_equipaje VARCHAR(50) DEFAULT NULL,"
-                 "fecha_hallazgo DATETIME NOT NULL,"
-                 "ubicacion_exacta VARCHAR(120) NOT NULL,"
-                 "empleado_hallazgo VARCHAR(80) NOT NULL,"
-                 "estado VARCHAR(40) NOT NULL DEFAULT 'Pendiente verificacion',"
-                 "fecha_registro DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,"
-                 "PRIMARY KEY (id_objeto),"
-                 "KEY idx_objetos_avion (id_avion),"
-                 "KEY idx_objetos_estado (estado),"
-                 "CONSTRAINT fk_objetos_avion FOREIGN KEY (id_avion) REFERENCES aviones(id_avion)"
-                 ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
         esquemaPreparado = true;
     }
     return conectada;

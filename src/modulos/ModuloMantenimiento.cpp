@@ -32,9 +32,8 @@ static std::string estadoVueloSegunTiempo(const Vuelo &vuelo)
 ModuloMantenimiento::ModuloMantenimiento()
     : mensaje("Modulo activo."), vista(0), foco(0), idAvion("4"), estado("Mantenimiento"),
       modeloNuevo("Airbus A320neo"), capacidadNueva("180"), estadoNuevo("Activo"),
-      objetoEncontrado("Auriculares"), avionObjeto("1"), numeroAsiento("14A"),
-      codigoEquipaje(""), fechaHallazgo("2026-06-29 10:30:00"), ubicacionHallazgo("Cabina central"),
-      empleadoHallazgo("mantenimiento"), asientoSeleccionadoMapa(""), vistaAnterior(-1), avionMapaSeleccionado(0)
+      avionObjeto("1"), numeroAsiento("14A"),
+      asientoSeleccionadoMapa(""), vistaAnterior(-1), avionMapaSeleccionado(0)
 {
     refrescarDatos();
 }
@@ -47,7 +46,7 @@ void ModuloMantenimiento::refrescarDatos()
 
 void ModuloMantenimiento::dibujarNavegacion()
 {
-    std::vector<std::string> opciones = {"Estado de flota", "Aviones", "Registrar avion", "Actualizar estado", "Objetos perdidos", "PIMA", "Reportes"};
+    std::vector<std::string> opciones = {"Estado de flota", "Aviones", "Registrar avion", "Actualizar estado", "PIMA", "Reportes"};
     UI::menuLateral("Flota y Mantenimiento", opciones, vista, UI::orange());
 
     for (int i = 0; i < (int)opciones.size(); ++i)
@@ -428,96 +427,6 @@ void ModuloMantenimiento::dibujarActualizarEstado()
     dibujarListado();
 }
 
-void ModuloMantenimiento::dibujarRegistroObjetosPerdidos()
-{
-    DrawText("Registro de Objetos Perdidos", 240, 95, 30, UI::navy());
-    DrawText("Cargue hallazgos encontrados durante inspecciones o reparaciones", 240, 130, 17, UI::muted());
-
-    Rectangle panel = {240, 165, 940, 440};
-    DrawRectangleRounded(Rectangle{panel.x, panel.y + 6, panel.width, panel.height}, 0.035f, 8, Color{224, 232, 242, 255});
-    DrawRectangleRounded(panel, 0.03f, 8, WHITE);
-    DrawRectangleLinesEx(panel, 1, UI::border());
-    DrawRectangleRounded(Rectangle{panel.x, panel.y, 8, panel.height}, 0.03f, 8, UI::orange());
-    DrawText("Registro de equipaje perdido", 265, 190, 22, UI::navy());
-
-    DrawText("Tipo: Equipaje", 265, 250, 18, UI::muted());
-
-    if (UI::input(Rectangle{265, 310, 360, 46}, "Descripcion detallada", objetoEncontrado, foco == 30))
-        foco = 30;
-    if (UI::input(Rectangle{655, 310, 140, 46}, "ID avion", avionObjeto, foco == 31))
-        foco = 31;
-    if (UI::input(Rectangle{825, 310, 300, 46}, "Fecha YYYY-MM-DD HH:MM:SS", fechaHallazgo, foco == 32))
-        foco = 32;
-    if (UI::input(Rectangle{265, 390, 360, 46}, "Ubicacion exacta", ubicacionHallazgo, foco == 33))
-        foco = 33;
-    if (UI::input(Rectangle{655, 390, 140, 46}, "Asiento", numeroAsiento, foco == 34))
-        foco = 34;
-    if (UI::input(Rectangle{825, 390, 300, 46}, "Codigo equipaje", codigoEquipaje, foco == 35))
-        foco = 35;
-    if (UI::input(Rectangle{265, 470, 360, 46}, "Empleado que encontro", empleadoHallazgo, foco == 36))
-        foco = 36;
-
-    if (foco == 30)
-        UI::capturarTexto(objetoEncontrado, 120);
-    if (foco == 31)
-        UI::capturarTexto(avionObjeto, 8);
-    if (foco == 32)
-        UI::capturarTexto(fechaHallazgo, 25);
-    if (foco == 33)
-        UI::capturarTexto(ubicacionHallazgo, 80);
-    if (foco == 34)
-        UI::capturarTexto(numeroAsiento, 6);
-    if (foco == 35)
-        UI::capturarTexto(codigoEquipaje, 12);
-    if (foco == 36)
-        UI::capturarTexto(empleadoHallazgo, 60);
-
-    int chipX = 265;
-    DrawText("Aviones", 265, 520, 17, UI::muted());
-    for (const Avion &avion : avionesCache)
-    {
-        Rectangle chip = {(float)chipX, 550, 74, 32};
-        bool activo = avionObjeto == std::to_string(avion.getId());
-        DrawRectangleRounded(chip, 0.28f, 8, activo ? Fade(UI::orange(), 0.16f) : WHITE);
-        DrawRectangleLinesEx(chip, 1, activo ? UI::orange() : UI::border());
-        DrawText(("#" + std::to_string(avion.getId())).c_str(), chipX + 18, 559, 15, activo ? UI::orange() : UI::muted());
-        if (CheckCollisionPointRec(GetMousePosition(), chip) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
-            avionObjeto = std::to_string(avion.getId());
-        chipX += 84;
-        if (chipX > 1080)
-            break;
-    }
-
-    if (UI::boton(Rectangle{265, 620, 230, 44}, "Registrar equipaje", UI::orange()))
-    {
-        int idAvionObjeto = ConexionDB::convertirEntero(avionObjeto);
-        int idObjeto = objetoPerdidoDAO.registrar("Equipaje", objetoEncontrado, idAvionObjeto, numeroAsiento, codigoEquipaje, fechaHallazgo, ubicacionHallazgo, empleadoHallazgo);
-        if (idObjeto != 0)
-        {
-            std::stringstream aviso;
-            aviso << "Equipaje perdido #" << idObjeto << ": " << objetoEncontrado
-                  << " encontrado en avion " << idAvionObjeto << " (" << ubicacionHallazgo << ", asiento " << numeroAsiento
-                  << ", codigo: " << codigoEquipaje << "). Verificar y gestionar recuperacion.";
-            bool notificado = notificacionDAO.crear(3, "Objetos perdidos", aviso.str());
-            mensaje = notificado ? "Equipaje registrado y notificado a Equipaje."
-                                 : "Equipaje registrado. No se pudo notificar a Equipaje.";
-            objetoEncontrado.clear();
-            ubicacionHallazgo.clear();
-            numeroAsiento.clear();
-            codigoEquipaje.clear();
-        }
-        else
-        {
-            mensaje = "No se pudo registrar. Revise objeto, avion, fecha, ubicacion y empleado.";
-        }
-    }
-
-    UI::aviso(Rectangle{240, 635, 780, 78}, "Flujo de recuperacion",
-              "Equipaje verifica el objeto. Si identifica al propietario, avisa a Atencion al Pasajero para coordinar devolucion.",
-              UI::orange());
-    DrawText(mensaje.c_str(), 265, 580, 18, mensaje.find("registrado") != std::string::npos ? UI::green() : RED);
-}
-
 void ModuloMantenimiento::dibujarListado()
 {
     int y = vista == 0 ? 155 : 500;
@@ -581,8 +490,6 @@ void ModuloMantenimiento::mostrar()
         else if (vista == 3)
             dibujarActualizarEstado();
         else if (vista == 4)
-            dibujarRegistroObjetosPerdidos();
-        else if (vista == 5)
         {
             DrawText("Plan de Inspeccion y Mantenimiento (PIMA)", 240, 95, 30, UI::navy());
             UI::aviso(Rectangle{240, 160, 740, 110}, "PIMA", "Use Actualizar estado para registrar limpieza, inspeccion, mantenimiento y reparaciones.", UI::orange());

@@ -4,7 +4,6 @@
 #include "../dao/AvionDAO.h"
 #include "../dao/VueloDAO.h"
 #include "../dao/NotificacionDAO.h"
-#include "../dao/ObjetoPerdidoDAO.h"
 #include "../modelos/Avion.h"
 #include <string>
 #include <vector>
@@ -15,7 +14,6 @@ private:
     AvionDAO avionDAO;
     VueloDAO vueloDAO;
     NotificacionDAO notificacionDAO;
-    ObjetoPerdidoDAO objetoPerdidoDAO;
     std::string mensaje;
     int vista;
     int foco;
@@ -24,13 +22,8 @@ private:
     std::string modeloNuevo;
     std::string capacidadNueva;
     std::string estadoNuevo;
-    std::string objetoEncontrado;
     std::string avionObjeto;
     std::string numeroAsiento;
-    std::string codigoEquipaje;
-    std::string fechaHallazgo;
-    std::string ubicacionHallazgo;
-    std::string empleadoHallazgo;
     std::string asientoSeleccionadoMapa;
     int vistaAnterior;
     int avionMapaSeleccionado;
@@ -42,7 +35,6 @@ private:
     void dibujarPlanoAsientos(const Avion &avion);
     void dibujarRegistrarAeronave();
     void dibujarActualizarEstado();
-    void dibujarRegistroObjetosPerdidos();
     void dibujarListado();
     void refrescarDatos();
     bool notificarOperacion(int avionId, const std::string &nuevoEstado);

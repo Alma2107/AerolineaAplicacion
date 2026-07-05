@@ -49,68 +49,84 @@ void MenuPrincipal::seleccionarModulo(int modulo)
 
 void MenuPrincipal::dibujarMenu()
 {
+    int ancho = GetScreenWidth();
+    int alto = GetScreenHeight();
+    float contentX = 220.0f;
+    float contentW = (float)ancho - contentX - 24.0f;
+    float cardW = (contentW - 32.0f) / 2.0f;
+    float cardH = 120.0f;
+    float cardGapH = 32.0f;
+    float cardGapV = 28.0f;
+    float cardYTop = 228.0f;
+    float cardYBottom = cardYTop + cardH + cardGapV;
+    float cardXLeft = contentX;
+    float cardXRight = contentX + cardW + cardGapH;
+
     ClearBackground(Color{244, 247, 251, 255});
-    DrawRectangle(0, 0, 210, 900, UI::navy());
+    DrawRectangle(0, 0, 210, alto, UI::navy());
     DrawText("AeroGest", 28, 24, 27, WHITE);
     DrawText("Sistema de Gestion de Vuelos", 28, 62, 14, Fade(WHITE, 0.75f));
     DrawText("MODULOS", 28, 108, 15, Fade(WHITE, 0.8f));
 
-    Rectangle side1 = {18, 132, 174, 94};
-    Rectangle side2 = {18, 240, 174, 94};
-    Rectangle side3 = {18, 348, 174, 94};
-    Rectangle side4 = {18, 456, 174, 94};
+    Rectangle side1 = {18, 132, 174, 72};
+    Rectangle side2 = {18, 218, 174, 72};
+    Rectangle side3 = {18, 304, 174, 72};
+    Rectangle side4 = {18, 390, 174, 72};
     DrawRectangleRounded(side1, 0.08f, 8, UI::blue());
     DrawRectangleRounded(side2, 0.08f, 8, UI::green());
     DrawRectangleRounded(side3, 0.08f, 8, UI::purple());
     DrawRectangleRounded(side4, 0.08f, 8, UI::orange());
-    DrawText("1  Operaciones", 42, 154, 18, WHITE);
-    DrawText("de Vuelo", 65, 178, 18, WHITE);
-    DrawText("2  Atencion al", 42, 262, 18, WHITE);
-    DrawText("Pasajero", 65, 286, 18, WHITE);
-    DrawText("3  Equipaje", 42, 382, 18, WHITE);
-    DrawText("4  Flota y", 42, 478, 18, WHITE);
-    DrawText("Mantenimiento", 65, 502, 18, WHITE);
-    DrawText("Cerrar sesion", 28, 760, 16, Fade(WHITE, 0.82f));
+    DrawText("1  Operaciones", 42, 148, 16, WHITE);
+    DrawText("de Vuelo", 65, 168, 16, WHITE);
+    DrawText("2  Atencion al", 42, 234, 16, WHITE);
+    DrawText("Pasajero", 65, 254, 16, WHITE);
+    DrawText("3  Equipaje", 42, 320, 16, WHITE);
+    DrawText("4  Flota y", 42, 406, 16, WHITE);
+    DrawText("Mantenimiento", 65, 426, 16, WHITE);
+    DrawText("Cerrar sesion", 28, alto - 70, 16, Fade(WHITE, 0.82f));
 
-    DrawText("Inicio", 250, 34, 30, UI::navy());
-    DrawText("Centro de control operacional conectado a XAMPP", 250, 76, 18, UI::muted());
-    DrawText("Administrador", 1195, 40, 16, UI::navy());
-    DrawCircle(1164, 44, 10, Fade(UI::blue(), 0.12f));
-    DrawText("!", 1161, 33, 20, RED);
+    DrawText("Inicio", contentX, 28, 24, UI::navy());
+    DrawText("Centro de control operacional conectado a XAMPP", contentX, 60, 15, UI::muted());
+    DrawText("Administrador", ancho - 190, 40, 16, UI::navy());
+    DrawCircle(ancho - 220, 44, 10, Fade(UI::blue(), 0.12f));
+    DrawText("!", ancho - 223, 33, 20, RED);
 
-    UI::imagenCubierta("assets/aero_hero.png", Rectangle{250, 112, 1090, 178}, WHITE);
-    DrawRectangleGradientH(250, 112, 620, 178, Fade(UI::navy(), 0.88f), Fade(UI::navy(), 0.05f));
-    DrawText("AeroGest Control Center", 285, 150, 34, WHITE);
-    DrawText("Gestion de vuelos, pasajeros, equipaje y flota con datos en MariaDB", 288, 194, 18, Fade(WHITE, 0.86f));
-    DrawRectangleRounded(Rectangle{288, 234, 190, 34}, 0.22f, 8, dbLista ? Fade(UI::green(), 0.92f) : Fade(RED, 0.92f));
-    DrawText(dbLista ? "BD conectada" : "BD sin conexion", 315, 242, 16, WHITE);
+    UI::imagenCubierta("src/assets/aero_hero.png", Rectangle{contentX, 92, contentW, 120}, WHITE);
+    DrawRectangleGradientH(contentX, 92, contentW * 0.6f, 120, Fade(UI::navy(), 0.88f), Fade(UI::navy(), 0.05f));
+    DrawText("AeroGest Control Center", contentX + 24, 112, 24, WHITE);
+    DrawText("Gestion de vuelos, pasajeros, equipaje y flota con datos en MariaDB", contentX + 24, 144, 14, Fade(WHITE, 0.86f));
+    DrawRectangleRounded(Rectangle{contentX + 24, 168, 170, 28}, 0.22f, 8, dbLista ? Fade(UI::green(), 0.92f) : Fade(RED, 0.92f));
+    DrawText(dbLista ? "BD conectada" : "BD sin conexion", contentX + 48, 174, 14, WHITE);
 
-    UI::tarjeta(Rectangle{250, 325, 365, 220}, "Operaciones de Vuelo",
+    UI::tarjeta(Rectangle{cardXLeft, cardYTop, cardW, cardH}, "Operaciones de Vuelo",
                 {"Crear y gestionar vuelos", "Asignar aeronaves", "Verificar clima", "Cancelar o reprogramar vuelos"}, UI::blue());
-    UI::tarjeta(Rectangle{640, 325, 365, 220}, "Atencion al Pasajero",
+    UI::tarjeta(Rectangle{cardXRight, cardYTop, cardW, cardH}, "Atencion al Pasajero",
                 {"Check-in por codigo de reserva", "Reservas presenciales", "Cancelar reserva y reembolso", "Notificaciones a pasajeros"}, UI::green());
-    UI::tarjeta(Rectangle{250, 570, 365, 220}, "Equipaje",
+    UI::tarjeta(Rectangle{cardXLeft, cardYBottom, cardW, cardH}, "Equipaje",
                 {"Registrar equipaje", "Rastrear equipaje", "Equipaje perdido o danado", "Reclamos"}, UI::purple());
-    UI::tarjeta(Rectangle{640, 570, 365, 220}, "Flota y Mantenimiento",
+    UI::tarjeta(Rectangle{cardXRight, cardYBottom, cardW, cardH}, "Flota y Mantenimiento",
                 {"Estado de flota", "PIMA y mantenimiento", "Reparaciones", "Avisos a operaciones"}, UI::orange());
 
-    if (UI::botonSecundario(Rectangle{280, 498, 300, 36}, "Ir al modulo", UI::blue()))
+    float buttonYTop = cardYTop + cardH + 10.0f;
+    float buttonYBottom = cardYBottom + cardH + 10.0f;
+    float buttonW = std::min(160.0f, cardW - 40.0f);
+    if (UI::botonSecundario(Rectangle{cardXLeft + 20, buttonYTop, buttonW, 30}, "Ir al modulo", UI::blue()))
         seleccionarModulo(1);
-    if (UI::botonSecundario(Rectangle{670, 498, 300, 36}, "Ir al modulo", UI::green()))
+    if (UI::botonSecundario(Rectangle{cardXRight + 20, buttonYTop, buttonW, 30}, "Ir al modulo", UI::green()))
         seleccionarModulo(2);
-    if (UI::botonSecundario(Rectangle{280, 743, 300, 36}, "Ir al modulo", UI::purple()))
+    if (UI::botonSecundario(Rectangle{cardXLeft + 20, buttonYBottom, buttonW, 30}, "Ir al modulo", UI::purple()))
         seleccionarModulo(3);
-    if (UI::botonSecundario(Rectangle{670, 743, 300, 36}, "Ir al modulo", UI::orange()))
+    if (UI::botonSecundario(Rectangle{cardXRight + 20, buttonYBottom, buttonW, 30}, "Ir al modulo", UI::orange()))
         seleccionarModulo(4);
 
-    UI::imagenCubierta("assets/runway_panel.png", Rectangle{1040, 325, 300, 220}, WHITE);
-    DrawRectangleGradientV(1040, 325, 300, 220, Fade(WHITE, 0.0f), Fade(UI::navy(), 0.78f));
-    DrawText("Operacion", 1065, 455, 24, WHITE);
-    DrawText("lista para despacho", 1065, 486, 18, Fade(WHITE, 0.86f));
-    UI::aviso(Rectangle{1040, 570, 300, 128}, dbLista ? "Base de datos conectada" : "Base de datos sin conexion",
+    UI::imagenCubierta("src/assets/runway_panel.png", Rectangle{cardXRight, cardYTop, cardW, cardH}, WHITE);
+    DrawRectangleGradientV(cardXRight, cardYTop, cardW, cardH, Fade(WHITE, 0.0f), Fade(UI::navy(), 0.78f));
+    DrawText("Operacion", cardXRight + 24, cardYTop + 30, 20, WHITE);
+    DrawText("lista para despacho", cardXRight + 24, cardYTop + 55, 14, Fade(WHITE, 0.86f));
+    UI::aviso(Rectangle{cardXRight, cardYBottom, cardW, 75}, dbLista ? "Base de datos conectada" : "Base de datos sin conexion",
               dbLista ? "Los modulos guardan, actualizan y eliminan datos en MariaDB." : mensaje, dbLista ? UI::green() : RED);
     DrawText("Usuarios: vuelos/vuelos123 | pasajeros/pasajeros123 | equipaje/equipaje123 | mantenimiento/mantenimiento123",
-             250, 805, 16, UI::muted());
+             contentX, alto - 30, 13, UI::muted());
 }
 
 void MenuPrincipal::dibujarLogin()
@@ -201,7 +217,9 @@ void MenuPrincipal::abrirModulo(int modulo)
 
 void MenuPrincipal::ejecutar()
 {
-    InitWindow(1400, 820, "AeroGest - Sistema de Gestion de Aerolinea");
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
+    InitWindow(1320, 760, "AeroGest - Sistema de Gestion de Aerolinea");
+    SetWindowPosition(100, 100);
     SetTargetFPS(60);
 
     while (!WindowShouldClose())
