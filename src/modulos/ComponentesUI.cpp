@@ -186,7 +186,7 @@ void tarjeta(Rectangle rect, const std::string &titulo, const std::vector<std::s
     DrawRectangleRounded(rect, 0.03f, 8, WHITE);
     DrawRectangleLinesEx(rect, 1, border());
     DrawRectangleRounded(Rectangle{rect.x, rect.y, 8, rect.height}, 0.03f, 8, color);
-    DrawCircleGradient(Vector2{(float)rect.x + (float)rect.width - 52.0f, (float)rect.y + 48.0f}, 62, Fade(color, 0.16f), Fade(color, 0.0f));
+    DrawCircleGradient((int)(rect.x + rect.width - 52.0f), (int)(rect.y + 48.0f), 62, Fade(color, 0.16f), Fade(color, 0.0f));
     DrawText(titulo.c_str(), (int)rect.x + 24, (int)rect.y + 22, 22, navy());
     DrawRectangleRounded(Rectangle{rect.x + 24, rect.y + 58, 76, 4}, 0.6f, 6, color);
 
@@ -203,7 +203,7 @@ void shellModulo(const std::string &titulo, const std::string &subtitulo, Color 
 {
     ClearBackground(panel());
     DrawRectangleGradientH(0, 0, 1500, 64, navy(), Color{15, 46, 82, 255});
-    DrawCircleGradient(Vector2{1140.0f, 22.0f}, 120, Fade(color, 0.22f), Fade(color, 0.0f));
+    DrawCircleGradient(1140, 22, 120, Fade(color, 0.22f), Fade(color, 0.0f));
     DrawText(titulo.c_str(), 235, 15, 23, WHITE);
     DrawText(subtitulo.c_str(), 235, 43, 15, Fade(WHITE, 0.76f));
     DrawText("Administrador", 1210, 22, 16, WHITE);

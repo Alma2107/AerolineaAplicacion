@@ -1,5 +1,7 @@
 #include "ReservaDAO.h"
 #include "PasajeroDAO.h"
+#include <algorithm>
+#include <cctype>
 #include <ctime>
 #include <random>
 #include <set>
@@ -134,7 +136,7 @@ std::vector<CatalogoItem> ReservaDAO::listarVuelosDisponibles() const
 {
     std::vector<CatalogoItem> items;
     auto filas = db.consultar(
-        "SELECT v.id_vuelo,CONCAT(v.numero_vuelo,' ',v.origen_iata,'-',v.destino_iata,' ',DATE_FORMAT(v.fecha_salida,'%Y-%m-%d %H:%i')),v.precio_base_vuelo "
+        "SELECT v.id_vuelo,CONCAT(v.numero_vuelo,' ',v.origen_iata,' → ',v.destino_iata,' ',DATE_FORMAT(v.fecha_salida,'%Y-%m-%d %H:%i')),v.precio_base_vuelo "
         "FROM vuelos v JOIN aviones a ON a.id_avion=v.id_avion "
         "WHERE v.estado_vuelo<>'Cancelado' AND a.estado='Activo' AND v.fecha_salida>=NOW() "
         "ORDER BY v.fecha_salida LIMIT 18");
@@ -165,8 +167,6 @@ std::vector<std::string> ReservaDAO::listarAsientosDisponibles(int idVuelo) cons
         asiento << (i / 6 + 1) << columnas[i % 6];
         if (ocupados.find(asiento.str()) == ocupados.end())
             asientos.push_back(asiento.str());
-        if ((int)asientos.size() >= 36)
-            break;
     }
     return asientos;
 }
@@ -180,6 +180,8 @@ std::string ReservaDAO::validarReservaPresencial(const Pasajero &pasajero, int i
 {
     if (pasajero.getNumeroDocumento().empty() || pasajero.getNombre().empty() || pasajero.getApellido().empty())
         return "Faltan datos obligatorios del pasajero.";
+    if (pasajero.getTipoDocumento() == "DNI" && (pasajero.getNumeroDocumento().size() > 8 || !std::all_of(pasajero.getNumeroDocumento().begin(), pasajero.getNumeroDocumento().end(), [](unsigned char c){ return std::isdigit(c); })))
+        return "El DNI debe contener solo numeros y maximo 8 digitos.";
     if (pasajero.getFechaNacimiento().empty())
         return "Debe indicar la fecha de nacimiento.";
     if (idCliente <= 0)

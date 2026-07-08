@@ -34,7 +34,7 @@ void ModuloEquipaje::refrescarDatos()
 
 void ModuloEquipaje::dibujarNavegacion()
 {
-    std::vector<std::string> opciones = {"Registrar equipaje", "Buscar equipaje", "Equipajes", "Perdido/danado", "Avisos"};
+    std::vector<std::string> opciones = {"Registrar equipaje", "Buscar equipaje", "Equipajes", "Equipaje perdido", "Avisos"};
     UI::menuLateral("Equipaje", opciones, vista, UI::purple());
 
     for (int i = 0; i < (int)opciones.size(); ++i)
@@ -44,9 +44,14 @@ void ModuloEquipaje::dibujarNavegacion()
             vista = i;
     }
 
-    if (UI::botonSecundario(Rectangle{24, 748, 160, 42}, "Volver al inicio", UI::purple()))
+    if (UI::botonSecundario(Rectangle{1000, 90, 220, 42}, "Volver al menú principal", UI::purple()))
     {
         vista = -1;
+        return;
+    }
+    if (UI::botonSecundario(Rectangle{24, 690, 160, 42}, "Salir", RED))
+    {
+        CloseWindow();
         return;
     }
 }
@@ -54,56 +59,36 @@ void ModuloEquipaje::dibujarNavegacion()
 void ModuloEquipaje::dibujarRegistrar()
 {
     DrawText("Registrar equipaje", 240, 95, 30, UI::navy());
-    DrawText("Registra el equipaje en ticket_equipajes", 240, 130, 17, UI::muted());
-
-    DrawText("Ticket", 240, 168, 17, UI::muted());
-    int yTicket = 194;
-    for (int i = 0; i < (int)ticketsCache.size() && i < 6; ++i)
-    {
-        const CatalogoItem &ticket = ticketsCache[i];
-        if (UI::botonSecundario(Rectangle{240, (float)yTicket, 360, 32}, ticket.nombre, std::to_string(ticket.id) == idTicket ? UI::purple() : UI::muted()))
-            idTicket = std::to_string(ticket.id);
-        yTicket += 38;
-    }
-    DrawText("Tipo de equipaje", 630, 168, 17, UI::muted());
-    int yTipo = 194;
-    for (int i = 0; i < (int)tiposEquipajeCache.size() && i < 6; ++i)
-    {
-        const CatalogoItem &tipo = tiposEquipajeCache[i];
-        std::stringstream texto;
-        texto << tipo.nombre << " $" << (int)tipo.precio;
-        if (UI::botonSecundario(Rectangle{630, (float)yTipo, 360, 32}, texto.str(), std::to_string(tipo.id) == idTipo ? UI::purple() : UI::muted()))
-        {
-            idTipo = std::to_string(tipo.id);
-            precio = std::to_string((int)tipo.precio);
-        }
-        yTipo += 38;
-    }
-    if (UI::input(Rectangle{1030, 194, 160, 46}, "Peso kg", peso, foco == 3))
+    DrawText("El ticket de equipaje se genera automaticamente al guardar", 240, 130, 17, UI::muted());
+    if (UI::input(Rectangle{240, 200, 170, 46}, "Ticket reserva", idTicket, foco == 1))
+        foco = 1;
+    if (UI::input(Rectangle{440, 200, 170, 46}, "Tipo equipaje", idTipo, foco == 2))
+        foco = 2;
+    if (UI::input(Rectangle{640, 200, 160, 46}, "Peso kg", peso, foco == 3))
         foco = 3;
-    if (UI::input(Rectangle{1030, 270, 160, 46}, "Precio", precio, foco == 4))
+    if (UI::input(Rectangle{830, 200, 160, 46}, "Precio", precio, foco == 4))
         foco = 4;
-
+    if (foco == 1)
+        UI::capturarTexto(idTicket, 8);
+    if (foco == 2)
+        UI::capturarTexto(idTipo, 8);
     if (foco == 3)
         UI::capturarTexto(peso, 8);
     if (foco == 4)
         UI::capturarTexto(precio, 12);
-
-    if (UI::boton(Rectangle{240, 455, 210, 44}, "Registrar equipaje", UI::purple()))
+    if (UI::boton(Rectangle{240, 305, 210, 44}, "Registrar equipaje", UI::purple()))
     {
         Equipaje equipaje = equipajeDAO.registrar(ConexionDB::convertirEntero(idTicket), ConexionDB::convertirEntero(idTipo),
                                                   ConexionDB::convertirDouble(peso), ConexionDB::convertirDouble(precio));
-        mensaje = equipaje.getId() != 0 ? "Equipaje guardado: " + equipaje.getCodigoEtiqueta() : "No se pudo guardar el equipaje.";
+        mensaje = equipaje.getId() != 0 ? "Ticket equipaje #" + std::to_string(equipaje.getId()) + " generado. Codigo: " + equipaje.getCodigoEtiqueta() : "No se pudo guardar el equipaje.";
         if (equipaje.getId() != 0)
         {
             etiqueta = equipaje.getCodigoEtiqueta();
             refrescarDatos();
         }
     }
-
-    DrawText(mensaje.c_str(), 240, 535, 19, UI::green());
+    DrawText(mensaje.c_str(), 240, 390, 19, UI::green());
 }
-
 void ModuloEquipaje::dibujarRastrear()
 {
     DrawText(vista == 1 ? "Buscar equipaje" : "Gestionar equipaje perdido o danado", 240, 95, 30, UI::navy());
@@ -121,10 +106,10 @@ void ModuloEquipaje::dibujarRastrear()
 
     if (vista == 3)
     {
-        if (UI::botonSecundario(Rectangle{240, 270, 180, 42}, "Marcar perdido", RED))
-            mensaje = equipajeDAO.actualizarEstado(etiqueta, "Perdido") ? "Equipaje marcado como perdido." : "Etiqueta no encontrada.";
-        if (UI::botonSecundario(Rectangle{450, 270, 180, 42}, "Marcar danado", UI::orange()))
-            mensaje = equipajeDAO.actualizarEstado(etiqueta, "Danado") ? "Equipaje marcado como danado." : "Etiqueta no encontrada.";
+        if (UI::botonSecundario(Rectangle{240, 270, 220, 42}, "Registrar pérdida", RED))
+            mensaje = equipajeDAO.actualizarEstado(etiqueta, "Perdido") ? "Equipaje marcado como perdido. Entregue este codigo al cliente: " + etiqueta : "Etiqueta no encontrada.";
+        if (UI::botonSecundario(Rectangle{480, 270, 220, 42}, "Marcar encontrado", UI::green()))
+            mensaje = equipajeDAO.actualizarEstado(etiqueta, "Encontrado") ? "Equipaje marcado como encontrado." : "Etiqueta no encontrada.";
     }
 
     DrawText(mensaje.c_str(), 240, 355, 19, UI::green());
@@ -297,3 +282,4 @@ void ModuloEquipaje::mostrar()
         EndDrawing();
     }
 }
+

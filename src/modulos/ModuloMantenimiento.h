@@ -23,8 +23,8 @@ private:
     std::string capacidadNueva;
     std::string estadoNuevo;
     std::string avionEquipajeHallado;
-    std::string numeroAsiento;
     std::string asientoSeleccionadoMapa;
+    std::string codigoEtiquetaEncontrado;
     int vistaAnterior;
     int avionMapaSeleccionado;
     std::vector<Avion> avionesCache;

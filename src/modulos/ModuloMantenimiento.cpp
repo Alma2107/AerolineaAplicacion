@@ -32,8 +32,8 @@ static std::string estadoVueloSegunTiempo(const Vuelo &vuelo)
 ModuloMantenimiento::ModuloMantenimiento()
     : mensaje("Modulo activo."), vista(0), foco(0), idAvion("4"), estado("Mantenimiento"),
       modeloNuevo("Airbus A320neo"), capacidadNueva("180"), estadoNuevo("Activo"),
-      avionEquipajeHallado("1"), numeroAsiento("TAG-001"),
-      asientoSeleccionadoMapa(""), vistaAnterior(-1), avionMapaSeleccionado(0)
+      avionEquipajeHallado("1"), asientoSeleccionadoMapa(""), codigoEtiquetaEncontrado("TAG-001"),
+      vistaAnterior(-1), avionMapaSeleccionado(0)
 {
     refrescarDatos();
 }
@@ -56,9 +56,14 @@ void ModuloMantenimiento::dibujarNavegacion()
             vista = i;
     }
 
-    if (UI::botonSecundario(Rectangle{24, 748, 160, 42}, "Volver al inicio", UI::orange()))
+    if (UI::botonSecundario(Rectangle{1000, 90, 220, 42}, "Volver al menú principal", UI::orange()))
     {
         vista = -1;
+        return;
+    }
+    if (UI::botonSecundario(Rectangle{24, 690, 160, 42}, "Salir", RED))
+    {
+        CloseWindow();
         return;
     }
 }
@@ -81,6 +86,11 @@ bool ModuloMantenimiento::notificarOperacion(int avionId, const std::string &nue
 
 void ModuloMantenimiento::dibujarEstadoFlota()
 {
+    if (UI::botonSecundario(Rectangle{1080, 20, 220, 42}, "Volver al menú principal", UI::orange()))
+    {
+        vista = -1;
+        return;
+    }
     DrawText("Estado de flota", 240, 95, 30, UI::navy());
     dibujarListado();
 }
@@ -312,7 +322,7 @@ void ModuloMantenimiento::dibujarPlanoAsientos(const Avion &avion)
         {
             std::string label = std::to_string(fila + 1) + (char)('A' + col);
             Rectangle seatRect = {startX + col * (seatSize + hGap), startY + fila * (seatSize + vGap), seatSize, seatSize};
-            bool seleccionado = numeroAsiento == label;
+            bool seleccionado = asientoSeleccionadoMapa == label;
             Color fill = seleccionado ? UI::orange() : Fade(UI::green(), compact ? 0.08f : 0.12f);
             DrawRectangleRounded(seatRect, 0.18f, 4, fill);
             DrawRectangleRoundedLines(seatRect, 0.18f, 2, seleccionado ? UI::orange() : UI::border());
@@ -322,7 +332,7 @@ void ModuloMantenimiento::dibujarPlanoAsientos(const Avion &avion)
                 DrawText(label.c_str(), (int)(seatRect.x + (seatSize - textWidth) / 2), (int)(seatRect.y + (seatSize - labelSize) / 2), labelSize, DARKGRAY);
             }
             if (CheckCollisionPointRec(GetMousePosition(), seatRect) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
-                numeroAsiento = label;
+                asientoSeleccionadoMapa = label;
         }
     }
     EndScissorMode();
@@ -332,7 +342,7 @@ void ModuloMantenimiento::dibujarPlanoAsientos(const Avion &avion)
         DrawText("Plano compacto", panel.x + 10, panel.y + panel.height - 20, 13, UI::muted());
     }
 
-    std::string seleccion = numeroAsiento.empty() ? "Ninguno" : numeroAsiento;
+    std::string seleccion = asientoSeleccionadoMapa.empty() ? "Ninguno" : asientoSeleccionadoMapa;
     DrawText(("Asiento seleccionado: " + seleccion).c_str(), panel.x + 10, panel.y + panel.height - 20, 15, UI::muted());
 }
 
@@ -518,15 +528,22 @@ void ModuloMantenimiento::mostrar()
                     avionEquipajeHallado = std::to_string(avion.getId());
                 yAv += 36;
             }
-            if (UI::input(Rectangle{560, 330, 220, 46}, "Codigo etiqueta", numeroAsiento, foco == 30))
+            if (UI::input(Rectangle{560, 330, 220, 46}, "Codigo etiqueta", codigoEtiquetaEncontrado, foco == 30))
                 foco = 30;
             if (foco == 30)
-                UI::capturarTexto(numeroAsiento, 20);
+                UI::capturarTexto(codigoEtiquetaEncontrado, 20);
             if (UI::boton(Rectangle{800, 330, 210, 44}, "Avisar equipaje", UI::orange()))
             {
-                std::string texto = "Mantenimiento encontro equipaje perdido en avion " + avionEquipajeHallado + " el " + obtenerFechaHoraActual() + " con codigo: " + numeroAsiento + ". Validar contra reclamos del vuelo asociado.";
-                bool ok = notificacionDAO.crear(3, "Equipaje perdido encontrado", texto);
-                mensaje = ok ? "Aviso enviado al modulo Equipaje." : "No se pudo enviar aviso a Equipaje.";
+                if (codigoEtiquetaEncontrado.empty())
+                {
+                    mensaje = "Debe ingresar el codigo de etiqueta del equipaje encontrado.";
+                }
+                else
+                {
+                    std::string texto = "Mantenimiento encontro equipaje perdido en avion " + avionEquipajeHallado + " el " + obtenerFechaHoraActual() + " con codigo: " + codigoEtiquetaEncontrado + ". Validar contra reclamos del vuelo asociado.";
+                    bool ok = notificacionDAO.crear(3, "Equipaje perdido encontrado", texto);
+                    mensaje = ok ? "Aviso enviado al modulo Equipaje." : "No se pudo enviar aviso a Equipaje.";
+                }
             }
             DrawText(mensaje.c_str(), 560, 395, 18, mensaje.find("enviado") != std::string::npos ? UI::green() : RED);
             dibujarListado();

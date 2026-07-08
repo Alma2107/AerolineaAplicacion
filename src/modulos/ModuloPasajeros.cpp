@@ -2,8 +2,20 @@
 #include "ComponentesUI.h"
 #include "raylib.h"
 #include <algorithm>
+#include <cctype>
 #include <sstream>
 #include <vector>
+
+static std::string normalizarDocumento(const std::string &valor)
+{
+    std::string salida;
+    for (char c : valor)
+    {
+        if (std::isdigit((unsigned char)c) && salida.size() < 8)
+            salida.push_back(c);
+    }
+    return salida;
+}
 
 static bool contieneId(const std::vector<int> &valores, int id)
 {
@@ -38,7 +50,7 @@ static std::string nombreSeleccionado(const std::vector<CatalogoItem> &items, in
 ModuloPasajeros::ModuloPasajeros()
     : mensaje("Modulo activo."), vista(0), foco(0), codigoReserva("AB1234"), tipoDoc("DNI"), documento("50000111"),
       nombre("Ana"), apellido("Torres"), fechaNacimiento("1998-03-21"), asistencia("0"), detalles(""),
-      idVuelo("1"), idCliente("1"), idMetodoPago("1"), asiento("14A"), idPlan("1"), codigoReservaNueva("CD5678"), precio("65000"),
+      idVuelo("1"), idCliente("1"), idMetodoPago("1"), asiento("14A"), idPlan("1"), tipoViaje("Solo ida"), codigoReservaNueva("CD5678"), precio("65000"),
       idTipoEquipaje(""), cantidadEquipaje("1"), precioEquipaje("0"), idServicio(""), precioServicio("0"),
       estadoAsientos(""),
       vistaAnterior(-1), notificacionesNoLeidas(0)
@@ -83,15 +95,19 @@ void ModuloPasajeros::dibujarNavegacion()
             vista = i;
     }
 
-    if (UI::botonSecundario(Rectangle{24, 748, 160, 42}, "Volver al inicio", UI::green()))
+    if (UI::botonSecundario(Rectangle{1000, 90, 220, 42}, "Volver al menú principal", UI::green()))
     {
         vista = -1;
         return;
     }
+    if (UI::botonSecundario(Rectangle{24, 690, 160, 42}, "Salir", RED))
+    {
+        CloseWindow();
+        return;
+    }
 }
 
-void ModuloPasajeros::dibujarCheckIn()
-{
+void ModuloPasajeros::dibujarCheckIn()`r`n{
     DrawText("Check-in por codigo de reserva", 240, 95, 30, UI::navy());
     DrawText("Ingrese el codigo de reserva para registrar el check-in", 240, 130, 17, UI::muted());
 
@@ -134,103 +150,84 @@ void ModuloPasajeros::dibujarCheckIn()
 
 void ModuloPasajeros::dibujarNuevaReserva()
 {
-    DrawText("Crear reserva presencial", 240, 95, 30, UI::navy());
-    DrawText("Formulario conectado a pasajeros, compras_ordenes, tickets_detalle, ticket_equipajes y ticket_servicios", 240, 130, 17, UI::muted());
+    DrawText("Crear reserva presencial", 240, 88, 30, UI::navy());
+    DrawText("Formulario conectado a pasajeros, compras_ordenes, tickets_detalle, ticket_equipajes y ticket_servicios", 240, 122, 16, UI::muted());
 
-    if (UI::input(Rectangle{240, 185, 120, 46}, "Tipo doc", tipoDoc, foco == 2))
+    DrawRectangleRounded(Rectangle{235, 150, 1000, 120}, 0.035f, 8, WHITE);
+    DrawRectangleLinesEx(Rectangle{235, 150, 1000, 120}, 1, UI::border());
+    DrawRectangleRounded(Rectangle{235, 150, 8, 120}, 0.035f, 8, UI::green());
+    DrawText("Datos del pasajero", 255, 165, 20, UI::navy());
+    DrawText("ID pasajero y codigo de reserva se generan automaticamente.", 460, 168, 15, UI::muted());
+
+    if (UI::input(Rectangle{255, 212, 120, 42}, "Tipo doc", tipoDoc, foco == 2))
         foco = 2;
-    if (UI::input(Rectangle{390, 185, 180, 46}, "Documento DNI", documento, foco == 3))
+    if (UI::input(Rectangle{395, 212, 170, 42}, "Documento DNI", documento, foco == 3))
         foco = 3;
-    if (UI::input(Rectangle{600, 185, 190, 46}, "Nombre", nombre, foco == 4))
+    if (UI::input(Rectangle{585, 212, 180, 42}, "Nombre", nombre, foco == 4))
         foco = 4;
-    if (UI::input(Rectangle{820, 185, 190, 46}, "Apellido", apellido, foco == 5))
+    if (UI::input(Rectangle{785, 212, 180, 42}, "Apellido", apellido, foco == 5))
         foco = 5;
-
-    if (UI::input(Rectangle{240, 260, 190, 46}, "Fecha nacimiento", fechaNacimiento, foco == 6))
-        foco = 6;
-    if (UI::input(Rectangle{460, 260, 150, 46}, "Asistencia 0/1", asistencia, foco == 7))
-        foco = 7;
-    if (UI::input(Rectangle{640, 260, 370, 46}, "Detalles medicos", detalles, foco == 8))
-        foco = 8;
-
-    if (UI::input(Rectangle{240, 335, 120, 46}, "ID cliente", idCliente, foco == 9))
-        foco = 9;
-    DrawText("Seleccione vuelo", 390, 316, 17, UI::muted());
-    int xVuelo = 390;
-    int yVuelo = 338;
-    for (int i = 0; i < (int)vuelosCache.size() && i < 4; ++i)
-    {
-        const CatalogoItem &vuelo = vuelosCache[i];
-        Rectangle item = {(float)xVuelo, (float)yVuelo, 248, 34};
-        bool elegido = std::to_string(vuelo.id) == idVuelo;
-        if (UI::botonSecundario(item, vuelo.nombre, elegido ? UI::green() : UI::muted()))
-        {
-            idVuelo = std::to_string(vuelo.id);
-            precio = std::to_string((int)vuelo.precio);
-            asientosCache = reservaDAO.listarAsientosDisponibles(vuelo.id);
-            if (!asientosCache.empty())
-                asiento = asientosCache[0];
-        }
-        yVuelo += 40;
-    }
-    DrawText("Asientos libres", 660, 316, 17, UI::muted());
-    int xAsiento = 660;
-    int yAsiento = 338;
-    for (int i = 0; i < (int)asientosCache.size() && i < 12; ++i)
-    {
-        Rectangle item = {(float)xAsiento, (float)yAsiento, 48, 30};
-        if (UI::botonSecundario(item, asientosCache[i], asientosCache[i] == asiento ? UI::green() : UI::muted()))
-            asiento = asientosCache[i];
-        xAsiento += 54;
-        if (xAsiento > 920)
-        {
-            xAsiento = 660;
-            yAsiento += 36;
-        }
-    }
-    DrawText("Plan", 960, 316, 17, UI::muted());
-    int yPlan = 338;
-    for (int i = 0; i < (int)planesCache.size() && i < 4; ++i)
-    {
-        const CatalogoItem &plan = planesCache[i];
-        Rectangle item = {960, (float)yPlan, 190, 32};
-        if (UI::botonSecundario(item, plan.nombre, std::to_string(plan.id) == idPlan ? UI::green() : UI::muted()))
-            idPlan = std::to_string(plan.id);
-        yPlan += 38;
-    }
-    if (UI::input(Rectangle{1040, 185, 120, 46}, "Pago", idMetodoPago, foco == 13))
+    if (UI::input(Rectangle{985, 212, 130, 42}, "Pago", idMetodoPago, foco == 13))
         foco = 13;
 
-    DrawText("Equipaje adicional", 240, 500, 17, UI::muted());
-    int yEquipaje = 525;
-    for (int i = 0; i < (int)tiposEquipajeCache.size() && i < 4; ++i)
+    DrawRectangleRounded(Rectangle{235, 292, 1000, 190}, 0.035f, 8, WHITE);
+    DrawRectangleLinesEx(Rectangle{235, 292, 1000, 190}, 1, UI::border());
+    DrawRectangleRounded(Rectangle{235, 292, 8, 190}, 0.035f, 8, UI::green());
+    DrawText("Viaje y disponibilidad", 255, 308, 20, UI::navy());
+
+    if (UI::input(Rectangle{255, 360, 170, 42}, "Fecha nacimiento", fechaNacimiento, foco == 6))
+        foco = 6;
+    if (UI::input(Rectangle{445, 360, 120, 42}, "Asistencia", asistencia, foco == 7))
+        foco = 7;
+    if (UI::input(Rectangle{585, 360, 255, 42}, "Detalles medicos", detalles, foco == 8))
+        foco = 8;
+
+    DrawText("Tipo de viaje", 860, 340, 16, UI::muted());
+    if (UI::botonSecundario(Rectangle{860, 360, 105, 30}, "Solo ida", tipoViaje == "Solo ida" ? UI::green() : UI::muted()))
+        tipoViaje = "Solo ida";
+    if (UI::botonSecundario(Rectangle{975, 360, 125, 30}, "Ida y vuelta", tipoViaje == "Ida y vuelta" ? UI::green() : UI::muted()))
+        tipoViaje = "Ida y vuelta";
+    if (UI::botonSecundario(Rectangle{1110, 360, 110, 30}, "Multitramo", tipoViaje == "Multitramo" ? UI::green() : UI::muted()))
+        tipoViaje = "Multitramo";
+    if (tipoViaje != "Solo ida")
     {
-        const CatalogoItem &tipo = tiposEquipajeCache[i];
-        std::stringstream texto;
-        texto << tipo.nombre << " $" << (int)tipo.precio;
-        if (UI::botonSecundario(Rectangle{240, (float)yEquipaje, 340, 30}, texto.str(), contieneId(equipajesSeleccionados, tipo.id) ? UI::green() : UI::muted()))
-            alternarId(equipajesSeleccionados, tipo.id);
-        yEquipaje += 36;
-    }
-    DrawText("Servicios", 610, 500, 17, UI::muted());
-    int yServicio = 525;
-    for (int i = 0; i < (int)serviciosCache.size() && i < 5; ++i)
-    {
-        const CatalogoItem &servicio = serviciosCache[i];
-        std::stringstream texto;
-        texto << servicio.nombre << " $" << (int)servicio.precio;
-        if (UI::botonSecundario(Rectangle{610, (float)yServicio, 360, 30}, texto.str(), contieneId(serviciosSeleccionados, servicio.id) ? UI::green() : UI::muted()))
-            alternarId(serviciosSeleccionados, servicio.id);
-        yServicio += 36;
+        DrawText("Complete el tramo complementario luego de guardar este tramo.", 860, 402, 14, UI::muted());
     }
 
-    if (UI::input(Rectangle{240, 410, 150, 46}, "Precio base", precio, foco == 15))
+        if (UI::input(Rectangle{255, 430, 120, 42}, "ID cliente", idCliente, foco == 9))
+        foco = 9;
+    if (UI::input(Rectangle{395, 430, 120, 42}, "ID vuelo", idVuelo, foco == 10))
+        foco = 10;
+    if (UI::input(Rectangle{535, 430, 120, 42}, "Asiento", asiento, foco == 11))
+        foco = 11;
+    if (UI::input(Rectangle{675, 430, 120, 42}, "ID plan", idPlan, foco == 12))
+        foco = 12;
+    if (UI::input(Rectangle{815, 430, 145, 42}, "Precio base", precio, foco == 15))
         foco = 15;
+    DrawRectangleRounded(Rectangle{235, 505, 1000, 130}, 0.035f, 8, WHITE);
+    DrawRectangleLinesEx(Rectangle{235, 505, 1000, 130}, 1, UI::border());
+    DrawRectangleRounded(Rectangle{235, 505, 8, 130}, 0.035f, 8, UI::green());
 
+    DrawText("Equipaje adicional", 255, 520, 16, UI::muted());
+    if (UI::input(Rectangle{255, 550, 130, 42}, "ID tipo", idTipoEquipaje, foco == 16))
+        foco = 16;
+    if (UI::input(Rectangle{405, 550, 110, 42}, "Cantidad", cantidadEquipaje, foco == 17))
+        foco = 17;
+    if (UI::input(Rectangle{535, 550, 130, 42}, "Precio eq.", precioEquipaje, foco == 18))
+        foco = 18;
+    DrawText("Servicios", 705, 520, 16, UI::muted());
+    if (UI::input(Rectangle{705, 550, 130, 42}, "ID servicio", idServicio, foco == 19))
+        foco = 19;
+    if (UI::input(Rectangle{855, 550, 130, 42}, "Precio serv.", precioServicio, foco == 20))
+        foco = 20;
     if (foco == 2)
         UI::capturarTexto(tipoDoc, 12);
     if (foco == 3)
+    {
+        documento = normalizarDocumento(documento);
         UI::capturarTexto(documento, 8);
+        documento = normalizarDocumento(documento);
+    }
     if (foco == 4)
         UI::capturarTexto(nombre, 35);
     if (foco == 5)
@@ -249,7 +246,7 @@ void ModuloPasajeros::dibujarNuevaReserva()
         UI::capturarTexto(precio, 12);
 
     Pasajero pasajero(0, tipoDoc, documento, nombre, apellido, fechaNacimiento, asistencia == "1", detalles, false);
-    if (UI::botonSecundario(Rectangle{420, 410, 180, 44}, "Ver disponibilidad", UI::green()))
+    if (UI::botonSecundario(Rectangle{255, 655, 180, 40}, "Ver disponibilidad", UI::green()))
     {
         int disponibles = reservaDAO.contarAsientosDisponibles(ConexionDB::convertirEntero(idVuelo));
         estadoAsientos = disponibles >= 0 ? "Asientos libres para venta presencial: " + std::to_string(disponibles)
@@ -258,7 +255,7 @@ void ModuloPasajeros::dibujarNuevaReserva()
         mensaje = disponibles > 0 ? "Vuelo disponible. Seleccione un asiento libre." : "Avion lleno: informar al cliente que debe elegir otro dia/vuelo.";
     }
 
-    if (UI::botonSecundario(Rectangle{620, 410, 170, 44}, "Validar reserva", UI::green()))
+    if (UI::botonSecundario(Rectangle{455, 655, 170, 40}, "Validar reserva", UI::green()))
     {
         std::string codigoTemporal = reservaDAO.generarCodigoReserva();
         mensaje = reservaDAO.validarReservaPresencial(
@@ -274,7 +271,7 @@ void ModuloPasajeros::dibujarNuevaReserva()
                                           : "No se pudo calcular disponibilidad del vuelo.";
     }
 
-    if (UI::boton(Rectangle{810, 410, 170, 44}, "Guardar reserva", UI::green()))
+    if (UI::boton(Rectangle{645, 655, 170, 40}, "Guardar reserva", UI::green()))
     {
         std::string codigoTemporal = reservaDAO.generarCodigoReserva();
         std::string validacion = reservaDAO.validarReservaPresencial(
@@ -287,11 +284,12 @@ void ModuloPasajeros::dibujarNuevaReserva()
             DrawText(mensaje.c_str(), 240, 720, 19, RED);
             return;
         }
-        std::vector<int> cantidades(equipajesSeleccionados.size(), 1);
         Reserva reserva = reservaDAO.crearReservaPresencial(
             pasajero, ConexionDB::convertirEntero(idCliente), ConexionDB::convertirEntero(idVuelo),
-            asiento, ConexionDB::convertirEntero(idPlan), ConexionDB::convertirEntero(idMetodoPago),
-            equipajesSeleccionados, cantidades, serviciosSeleccionados);
+            asiento, ConexionDB::convertirEntero(idPlan), codigoTemporal, ConexionDB::convertirDouble(precio),
+            ConexionDB::convertirEntero(idMetodoPago), ConexionDB::convertirEntero(idTipoEquipaje),
+            ConexionDB::convertirEntero(cantidadEquipaje, 1), ConexionDB::convertirDouble(precioEquipaje),
+            ConexionDB::convertirEntero(idServicio), ConexionDB::convertirDouble(precioServicio));
         mensaje = reserva.getIdTicket() != 0 ? "Reserva guardada en BD con codigo " + reserva.getCodigoReserva() : "No se pudo guardar la reserva.";
         if (reserva.getIdTicket() != 0)
         {
@@ -309,9 +307,9 @@ void ModuloPasajeros::dibujarNuevaReserva()
         total += precioSeleccionado(serviciosCache, id);
     std::stringstream totalTexto;
     totalTexto << "Total estimado: $" << (int)total << " | Vuelo " << nombreSeleccionado(vuelosCache, ConexionDB::convertirEntero(idVuelo)) << " | Asiento " << asiento;
-    DrawText(totalTexto.str().c_str(), 240, 690, 18, UI::navy());
-    DrawText(mensaje.c_str(), 240, 720, 19, mensaje.find("apta") != std::string::npos || mensaje.find("guardada") != std::string::npos || mensaje.find("disponible") != std::string::npos ? UI::green() : RED);
-    DrawText(estadoAsientos.c_str(), 240, 750, 18, UI::muted());
+    UI::textoRecortado(totalTexto.str(), 840, 658, 17, UI::navy(), 46);
+    UI::textoRecortado(mensaje, 255, 710, 18, mensaje.find("apta") != std::string::npos || mensaje.find("guardada") != std::string::npos || mensaje.find("disponible") != std::string::npos ? UI::green() : RED, 88);
+    UI::textoRecortado(estadoAsientos, 255, 735, 16, UI::muted(), 88);
 }
 
 void ModuloPasajeros::dibujarCancelaciones()
@@ -498,3 +496,4 @@ void ModuloPasajeros::mostrar()
         EndDrawing();
     }
 }
+

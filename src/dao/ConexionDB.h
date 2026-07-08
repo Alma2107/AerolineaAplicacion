@@ -10,6 +10,11 @@ private:
     bool conectada;
     std::string nombreBase;
     std::string mysqlExe;
+    std::string dbHost;
+    std::string dbPort;
+    std::string dbUsuario;
+    std::string dbPassword;
+    std::string dbCharset;
 
     std::string comandoMysql(const std::string &sql, bool usarBase) const;
 

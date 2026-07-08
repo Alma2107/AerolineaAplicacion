@@ -226,8 +226,8 @@ static DatosClima consultarClimaTiempoReal(const std::string &iataSolicitado)
 static void dibujarHeroAereo(Rectangle rect, Color color)
 {
     DrawRectangleGradientV((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height, Fade(color, 0.95f), Color{6, 23, 44, 255});
-    DrawCircleGradient(Vector2{(float)rect.x + rect.width - 80.0f, (float)rect.y + 44.0f}, 112, Fade(WHITE, 0.28f), Fade(WHITE, 0.0f));
-    DrawCircleGradient(Vector2{(float)rect.x + 120.0f, (float)rect.y + rect.height - 10.0f}, 150, Fade(Color{23, 178, 148, 255}, 0.24f), Fade(color, 0.0f));
+    DrawCircleGradient((int)(rect.x + rect.width - 80.0f), (int)(rect.y + 44.0f), 112, Fade(WHITE, 0.28f), Fade(WHITE, 0.0f));
+    DrawCircleGradient((int)(rect.x + 120.0f), (int)(rect.y + rect.height - 10.0f), 150, Fade(Color{23, 178, 148, 255}, 0.24f), Fade(color, 0.0f));
 
     Vector2 nose = {rect.x + rect.width - 70, rect.y + rect.height * 0.48f};
     Vector2 tail = {rect.x + 90, rect.y + rect.height * 0.58f};
@@ -300,15 +300,19 @@ void ModuloVuelos::dibujarNavegacion()
             vista = i;
     }
 
-    if (UI::botonSecundario(Rectangle{24, 748, 160, 42}, "Volver al inicio", UI::blue()))
+    if (UI::botonSecundario(Rectangle{1000, 90, 220, 42}, "Volver al menú principal", UI::blue()))
     {
         vista = -1;
         return;
     }
+    if (UI::botonSecundario(Rectangle{24, 690, 160, 42}, "Salir", RED))
+    {
+        CloseWindow();
+        return;
+    }
 }
 
-void ModuloVuelos::dibujarCrearVuelo()
-{
+void ModuloVuelos::dibujarCrearVuelo()`r`n{
     DrawText("Crear vuelo", 240, 95, 30, UI::navy());
     DrawText("Campos requeridos por la tabla vuelos", 240, 130, 17, UI::muted());
 
@@ -351,8 +355,8 @@ void ModuloVuelos::dibujarCrearVuelo()
         }
     }
 
-    if (UI::input(Rectangle{240, 365, 190, 46}, "ID aeronave", idAvion, foco == 6))
-        foco = 6;
+    DrawText("Aeronave", 240, 365, 17, UI::muted());
+    DrawText(idAvion.empty() ? "Seleccione una aeronave disponible desde la lista inferior" : ("Seleccionada: #" + idAvion).c_str(), 320, 365, 16, UI::muted());
     if (UI::input(Rectangle{460, 365, 190, 46}, "Precio base", precio, foco == 7))
         foco = 7;
     if (UI::input(Rectangle{680, 365, 210, 46}, "Estado", estado, foco == 8))
@@ -372,8 +376,6 @@ void ModuloVuelos::dibujarCrearVuelo()
         UI::capturarTexto(diaLlegada, 10);
     if (foco == 10)
         UI::capturarTexto(horaLlegada, 8);
-    if (foco == 6)
-        UI::capturarTexto(idAvion, 5);
     if (foco == 7)
         UI::capturarTexto(precio, 12);
     if (foco == 8)
@@ -416,15 +418,7 @@ void ModuloVuelos::dibujarCrearVuelo()
         if (yBloqueada > 790)
             break;
     }
-
-    if (UI::botonSecundario(Rectangle{240, 455, 170, 42}, "Validar datos", UI::blue()))
-    {
-        origen = origenNormalizado;
-        destino = destinoNormalizado;
-        std::string resultado = vueloDAO.validar(vuelo);
-        mensaje = resultado == "OK" ? "Validacion API BD: vuelo apto para guardar." : "Validacion API BD: " + resultado;
-    }
-    if (UI::boton(Rectangle{430, 455, 170, 42}, "Guardar vuelo", UI::blue()))
+    if (UI::boton(Rectangle{240, 455, 170, 42}, "Guardar vuelo", UI::blue()))
     {
         origen = origenNormalizado;
         destino = destinoNormalizado;
@@ -444,7 +438,7 @@ void ModuloVuelos::dibujarCrearVuelo()
 
     DrawRectangleRounded(Rectangle{240, 535, 650, 82}, 0.04f, 8, WHITE);
     DrawRectangleLinesEx(Rectangle{240, 535, 650, 82}, 1, UI::border());
-    DrawText("Resultado de validacion", 260, 555, 19, UI::blue());
+    DrawText("Resultado", 260, 555, 19, UI::blue());
     UI::textoRecortado(mensaje, 260, 585, 18, mensaje.find("apto") != std::string::npos || mensaje.find("guardado") != std::string::npos ? UI::green() : RED, 78);
 }
 
@@ -756,3 +750,4 @@ void ModuloVuelos::mostrar()
         EndDrawing();
     }
 }
+

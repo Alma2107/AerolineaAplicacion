@@ -1,0 +1,2 @@
+"C:\xampp\mysql\bin\mysql.exe" --default-character-set=utf8mb4 -h localhost -P 3306 --connect-timeout=5 -N -B -u root --database=aerolinea -e "SELECT" no se reconoce como un comando interno o externo,
+programa o archivo por lotes ejecutable.

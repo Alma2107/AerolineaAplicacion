@@ -31,6 +31,7 @@ private:
     std::string idMetodoPago;
     std::string asiento;
     std::string idPlan;
+    std::string tipoViaje;
     std::string codigoReservaNueva;
     std::string precio;
     std::string idTipoEquipaje;
