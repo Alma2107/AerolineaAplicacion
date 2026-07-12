@@ -252,6 +252,41 @@ std::string ReservaDAO::validarReservaPresencial(const Pasajero &pasajero, int i
     return "OK";
 }
 
+std::string ReservaDAO::validarReservaPresencial(const Pasajero &pasajero, int idCliente, int idVuelo,
+                                                 const std::string &asiento, int idPlan,
+                                                 const std::string &codigoReserva, double precio,
+                                                 int idMetodoPago, const std::vector<int> &tiposEquipaje,
+                                                 const std::vector<int> &cantidadesEquipaje,
+                                                 const std::vector<int> &servicios) const
+{
+    std::string resultado = validarReservaPresencial(pasajero, idCliente, idVuelo, asiento, idPlan, codigoReserva, precio, idMetodoPago);
+    if (resultado != "OK")
+        return resultado;
+
+    if (tiposEquipaje.size() != cantidadesEquipaje.size())
+        return "Debe indicar la cantidad para cada tipo de equipaje seleccionado.";
+
+    for (int i = 0; i < (int)tiposEquipaje.size(); ++i)
+    {
+        int idTipo = tiposEquipaje[i];
+        int cantidad = cantidadesEquipaje[i];
+        if (cantidad <= 0)
+            return "La cantidad de equipaje debe ser mayor a cero.";
+        auto tipo = db.consultar("SELECT COUNT(*) FROM tipos_equipaje WHERE id_tipo_equipaje=" + std::to_string(idTipo));
+        if (tipo.empty() || tipo[0].empty() || ConexionDB::convertirEntero(tipo[0][0]) == 0)
+            return "El tipo de equipaje seleccionado no existe.";
+    }
+
+    for (int idServicio : servicios)
+    {
+        auto servicio = db.consultar("SELECT COUNT(*) FROM servicios_adicionales WHERE id_servicio=" + std::to_string(idServicio));
+        if (servicio.empty() || servicio[0].empty() || ConexionDB::convertirEntero(servicio[0][0]) == 0)
+            return "El servicio adicional seleccionado no existe.";
+    }
+
+    return "OK";
+}
+
 Reserva ReservaDAO::crearReservaPresencial(const Pasajero &pasajero, int idCliente, int idVuelo,
                                            const std::string &asiento, int idPlan,
                                            const std::string &codigoReserva, double precio,

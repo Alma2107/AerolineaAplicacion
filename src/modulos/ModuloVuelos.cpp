@@ -226,8 +226,8 @@ static DatosClima consultarClimaTiempoReal(const std::string &iataSolicitado)
 static void dibujarHeroAereo(Rectangle rect, Color color)
 {
     DrawRectangleGradientV((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height, Fade(color, 0.95f), Color{6, 23, 44, 255});
-    DrawCircleGradient((int)(rect.x + rect.width - 80.0f), (int)(rect.y + 44.0f), 112, Fade(WHITE, 0.28f), Fade(WHITE, 0.0f));
-    DrawCircleGradient((int)(rect.x + 120.0f), (int)(rect.y + rect.height - 10.0f), 150, Fade(Color{23, 178, 148, 255}, 0.24f), Fade(color, 0.0f));
+    DrawCircleGradient(Vector2{rect.x + rect.width - 80.0f, rect.y + 44.0f}, 112, Fade(WHITE, 0.28f), Fade(WHITE, 0.0f));
+    DrawCircleGradient(Vector2{rect.x + 120.0f, rect.y + rect.height - 10.0f}, 150, Fade(Color{23, 178, 148, 255}, 0.24f), Fade(color, 0.0f));
 
     Vector2 nose = {rect.x + rect.width - 70, rect.y + rect.height * 0.48f};
     Vector2 tail = {rect.x + 90, rect.y + rect.height * 0.58f};
@@ -312,7 +312,8 @@ void ModuloVuelos::dibujarNavegacion()
     }
 }
 
-void ModuloVuelos::dibujarCrearVuelo()`r`n{
+void ModuloVuelos::dibujarCrearVuelo()
+{
     DrawText("Crear vuelo", 240, 95, 30, UI::navy());
     DrawText("Campos requeridos por la tabla vuelos", 240, 130, 17, UI::muted());
 

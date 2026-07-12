@@ -4,6 +4,12 @@ for %%I in ("%~dp0..") do set "BASE=%%~fI\"
 cd /d "%BASE%"
 set "PATH=%BASE%build;C:\xampp\mysql\bin;%PATH%"
 
+echo.
+echo Verificando MySQL antes de compilar...
+echo.
+call "%BASE%scripts\verificar_mysql.bat"
+echo.
+
 call "%BASE%scripts\compilar.bat"
 if errorlevel 1 (
     echo Error durante la compilacion. No se iniciara el ejecutable.

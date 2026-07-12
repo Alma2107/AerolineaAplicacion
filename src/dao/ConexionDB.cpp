@@ -1,13 +1,209 @@
 #include "ConexionDB.h"
+#include <windows.h>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
+#include <direct.h>
 
 static bool archivoExiste(const std::string &ruta)
 {
     std::ifstream archivo(ruta.c_str());
     return archivo.good();
+}
+
+static std::string rutaDirectorio(const std::string &ruta)
+{
+    size_t pos = ruta.find_last_of("\\/");
+    return pos == std::string::npos ? ruta : ruta.substr(0, pos);
+}
+
+static std::string rutaEjecutable()
+{
+    char buffer[_MAX_PATH];
+    DWORD resultado = GetModuleFileNameA(NULL, buffer, sizeof(buffer));
+    return resultado > 0 ? std::string(buffer, resultado) : std::string();
+}
+
+static std::string rutaActual();
+
+static std::string rutaProyecto()
+{
+    std::string exePath = rutaEjecutable();
+    if (exePath.empty())
+        return rutaActual();
+
+    std::string dir = rutaDirectorio(exePath);
+    if (dir.size() >= 6 && dir.compare(dir.size() - 6, 6, "\\build") == 0)
+        dir = dir.substr(0, dir.size() - 6);
+
+    while (!dir.empty() && (dir.back() == '\\' || dir.back() == '/'))
+        dir.pop_back();
+
+    return dir.empty() ? rutaActual() : dir;
+}
+
+static std::string rutaActual()
+{
+    char cwd[_MAX_PATH];
+    if (_getcwd(cwd, sizeof(cwd)) != nullptr)
+        return std::string(cwd);
+    return std::string();
+}
+
+static std::string rutaProyectoArchivo(const std::string &ruta)
+{
+    std::string base = rutaProyecto();
+    if (base.empty())
+        return ruta;
+    if (!ruta.empty() && (ruta[0] == '\\' || ruta[0] == '/'))
+        return base + ruta;
+    return base + "\\" + ruta;
+}
+
+static bool crearDirectorioSiNoExiste(const std::string &ruta)
+{
+    std::string dir = rutaDirectorio(ruta);
+    if (dir.empty())
+        return false;
+    if (archivoExiste(dir))
+        return true;
+    return _mkdir(dir.c_str()) == 0 || errno == EEXIST;
+}
+
+static std::string rutaLog()
+{
+    return rutaProyectoArchivo("logs\\conexion_aerogest.log");
+}
+
+static std::string rutaTemp(const std::string &archivo)
+{
+    return rutaProyectoArchivo("build\\" + archivo);
+}
+
+static int ejecutarEnShell(const std::string &comando)
+{
+    std::string shell = "cmd.exe /c \"" + comando + "\"";
+    return std::system(shell.c_str());
+}
+
+static int ejecutarCapturando(const std::string &comando, std::string &salida)
+{
+    std::string cmd = comando + " 2>&1";
+    FILE *pipe = _popen(cmd.c_str(), "r");
+    if (!pipe)
+        return -1;
+    char buffer[256];
+    salida.clear();
+    while (fgets(buffer, sizeof(buffer), pipe) != nullptr)
+        salida += buffer;
+    int rc = _pclose(pipe);
+    return rc;
+}
+
+static int ejecutarMysqlConStdin(const std::string &mysqlExePath, const std::string &host, const std::string &port,
+                                 const std::string &usuario, const std::string &password, const std::string &charset,
+                                 const std::string &sql, bool usarBase, const std::string &nombreBase, std::string &salida)
+{
+    SECURITY_ATTRIBUTES sa;
+    sa.nLength = sizeof(SECURITY_ATTRIBUTES);
+    sa.lpSecurityDescriptor = NULL;
+    sa.bInheritHandle = TRUE;
+
+    HANDLE hChildStd_OUT_Rd = NULL;
+    HANDLE hChildStd_OUT_Wr = NULL;
+    HANDLE hChildStd_IN_Rd = NULL;
+    HANDLE hChildStd_IN_Wr = NULL;
+
+    if (!CreatePipe(&hChildStd_OUT_Rd, &hChildStd_OUT_Wr, &sa, 0))
+        return -1;
+    if (!SetHandleInformation(hChildStd_OUT_Rd, HANDLE_FLAG_INHERIT, 0))
+    {
+        CloseHandle(hChildStd_OUT_Rd);
+        CloseHandle(hChildStd_OUT_Wr);
+        return -1;
+    }
+
+    if (!CreatePipe(&hChildStd_IN_Rd, &hChildStd_IN_Wr, &sa, 0))
+    {
+        CloseHandle(hChildStd_OUT_Rd);
+        CloseHandle(hChildStd_OUT_Wr);
+        return -1;
+    }
+    if (!SetHandleInformation(hChildStd_IN_Wr, HANDLE_FLAG_INHERIT, 0))
+    {
+        CloseHandle(hChildStd_OUT_Rd);
+        CloseHandle(hChildStd_OUT_Wr);
+        CloseHandle(hChildStd_IN_Rd);
+        CloseHandle(hChildStd_IN_Wr);
+        return -1;
+    }
+
+    std::stringstream cmd;
+    cmd << "\"" << mysqlExePath << "\"";
+    cmd << " --default-character-set=" << charset;
+    cmd << " --protocol=tcp";
+    cmd << " -h " << host << " -P " << port;
+    cmd << " --connect-timeout=5 -N -B -u " << usuario;
+    if (!password.empty())
+        cmd << " --password=\"" << password << "\"";
+    if (usarBase)
+        cmd << " --database=" << nombreBase;
+
+    std::string cmdstr = cmd.str();
+    std::vector<char> cmdline(cmdstr.begin(), cmdstr.end());
+    cmdline.push_back('\0');
+
+    STARTUPINFOA si;
+    PROCESS_INFORMATION pi;
+    ZeroMemory(&si, sizeof(si));
+    si.cb = sizeof(si);
+    si.hStdError = hChildStd_OUT_Wr;
+    si.hStdOutput = hChildStd_OUT_Wr;
+    si.hStdInput = hChildStd_IN_Rd;
+    si.dwFlags |= STARTF_USESTDHANDLES;
+
+    ZeroMemory(&pi, sizeof(pi));
+
+    BOOL ok = CreateProcessA(NULL, cmdline.data(), NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi);
+    if (!ok)
+    {
+        CloseHandle(hChildStd_OUT_Rd);
+        CloseHandle(hChildStd_OUT_Wr);
+        CloseHandle(hChildStd_IN_Rd);
+        CloseHandle(hChildStd_IN_Wr);
+        return -1;
+    }
+
+    // Close handles we don't need
+    CloseHandle(hChildStd_OUT_Wr);
+    CloseHandle(hChildStd_IN_Rd);
+
+    // Write SQL to child's stdin
+    std::string sqlToSend = sql + "\n";
+    DWORD written = 0;
+    BOOL writeOk = WriteFile(hChildStd_IN_Wr, sqlToSend.c_str(), (DWORD)sqlToSend.size(), &written, NULL);
+    CloseHandle(hChildStd_IN_Wr);
+
+    // Read child's output
+    const int bufSize = 4096;
+    char buffer[bufSize];
+    salida.clear();
+    DWORD readBytes = 0;
+    while (ReadFile(hChildStd_OUT_Rd, buffer, bufSize, &readBytes, NULL) && readBytes > 0)
+    {
+        salida.append(buffer, buffer + readBytes);
+    }
+
+    CloseHandle(hChildStd_OUT_Rd);
+
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    DWORD exitCode = 0;
+    GetExitCodeProcess(pi.hProcess, &exitCode);
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+
+    return (int)exitCode;
 }
 
 static std::string obtenerVariableEntorno(const std::string &clave, const std::string &porDefecto = "")
@@ -67,7 +263,7 @@ ConexionDB::ConexionDB()
     : conectada(false),
       nombreBase(obtenerVariableEntorno("MYSQL_DATABASE", obtenerVariableEntorno("DB_DATABASE", "aerolinea"))),
       mysqlExe(buscarMysqlExe()),
-      dbHost(obtenerVariableEntorno("MYSQL_HOST", obtenerVariableEntorno("DB_HOST", "localhost"))),
+    dbHost(obtenerVariableEntorno("MYSQL_HOST", obtenerVariableEntorno("DB_HOST", "127.0.0.1"))),
       dbPort(obtenerVariableEntorno("MYSQL_PORT", obtenerVariableEntorno("DB_PORT", "3306"))),
       dbUsuario(obtenerVariableEntorno("MYSQL_USER", obtenerVariableEntorno("DB_USER", "root"))),
       dbPassword(obtenerVariableEntorno("MYSQL_PASSWORD", obtenerVariableEntorno("DB_PASSWORD", ""))),
@@ -86,11 +282,14 @@ std::string ConexionDB::comandoMysql(const std::string &sql, bool usarBase) cons
             c = ' ';
     }
 
+    std::string host = dbHost;
+    if (host == "localhost")
+        host = "127.0.0.1";
+
     std::stringstream comando;
     comando << "\"" << mysqlExe << "\" --default-character-set=" << dbCharset;
-    if (dbHost != "localhost")
-        comando << " --protocol=tcp";
-    comando << " -h " << dbHost << " -P " << dbPort;
+    comando << " --protocol=tcp";
+    comando << " -h " << host << " -P " << dbPort;
     comando << " --connect-timeout=5 -N -B -u " << dbUsuario;
     if (!dbPassword.empty())
         comando << " --password=\"" << dbPassword << "\"";
@@ -104,30 +303,33 @@ bool ConexionDB::conectar()
 {
     if (!comandoDisponible(mysqlExe))
     {
-        std::ofstream log("logs/conexion_aerogest.log", std::ios::app);
+        crearDirectorioSiNoExiste(rutaLog());
+        std::ofstream log(rutaLog(), std::ios::app);
         log << "Archivo mysql.exe no encontrado: " << mysqlExe << std::endl;
         return false;
     }
     
-    std::string tempFile = "build\\temp_test.txt";
-    std::string cmd = comandoMysql("SELECT 1", false) + " > \"" + tempFile + "\" 2>&1";
-    int resultado = std::system(cmd.c_str());
-    
-    bool ok = false;
+    crearDirectorioSiNoExiste(rutaLog());
+    std::string tempFile = rutaTemp("temp_test.txt");
     std::string contenido;
-    if (archivoExiste(tempFile))
+    std::string hostReal = dbHost == "localhost" ? "127.0.0.1" : dbHost;
+    int resultado = ejecutarMysqlConStdin(mysqlExe, hostReal, dbPort, dbUsuario, dbPassword, dbCharset, "SELECT 1", false, nombreBase, contenido);
+    bool ok = (resultado == 0);
+    if (!contenido.empty())
     {
-        std::ifstream archivo(tempFile);
-        std::getline(archivo, contenido);
+        // escribir copia en tempFile para compatibilidad con logs anteriores
+        crearDirectorioSiNoExiste(tempFile);
+        std::ofstream archivo(tempFile);
+        archivo << contenido;
         archivo.close();
-        std::remove(tempFile.c_str());
-        ok = (resultado == 0 && contenido == "1");
     }
     
     if (!ok)
     {
-        std::ofstream log("logs/conexion_aerogest.log", std::ios::app);
-        log << "No se pudo conectar a MySQL en " << dbHost << ":" << dbPort << " con usuario=" << dbUsuario << ". Codigo: " << resultado << std::endl;
+        std::ofstream log(rutaLog(), std::ios::app);
+        std::string hostReal = dbHost == "localhost" ? "127.0.0.1" : dbHost;
+        log << "No se pudo conectar a MySQL en " << hostReal << ":" << dbPort << " con usuario=" << dbUsuario << ". Codigo: " << resultado << std::endl;
+        log << "Comando ejecutado: " << mysqlExe << " --protocol=tcp -h " << hostReal << " -P " << dbPort << " -u " << dbUsuario << " (SQL via stdin)" << std::endl;
         if (!contenido.empty())
             log << "Salida mysql: " << contenido << std::endl;
         else
@@ -158,7 +360,7 @@ bool ConexionDB::ejecutar(const std::string &sql) const
     if (!comandoDisponible(mysqlExe))
         return false;
 
-    std::string tempFile = "build\\temp_exec.txt";
+    std::string tempFile = rutaTemp("temp_exec.txt");
     std::string sqlLimpio = sql;
     for (char &c : sqlLimpio)
     {
@@ -180,8 +382,10 @@ bool ConexionDB::ejecutar(const std::string &sql) const
             std::getline(archivo, contenido);
             archivo.close();
         }
-        std::ofstream log("logs/conexion_aerogest.log", std::ios::app);
+        crearDirectorioSiNoExiste(rutaLog());
+        std::ofstream log(rutaLog(), std::ios::app);
         log << "Error al ejecutar SQL. Codigo: " << resultado << " - SQL: " << sql << std::endl;
+        log << "Comando ejecutado: " << cmd << std::endl;
         if (!contenido.empty())
             log << "Salida mysql: " << contenido << std::endl;
     }
@@ -198,7 +402,7 @@ std::vector<std::vector<std::string>> ConexionDB::consultar(const std::string &s
     if (!comandoDisponible(mysqlExe))
         return filas;
 
-    std::string tempFile = "build\\temp_query.txt";
+    std::string tempFile = rutaTemp("temp_query.txt");
     std::string sqlLimpio = sql;
     for (char &c : sqlLimpio)
     {
@@ -225,6 +429,22 @@ std::vector<std::vector<std::string>> ConexionDB::consultar(const std::string &s
         }
         archivo.close();
     }
+    else if (resultado != 0)
+    {
+        std::string contenido;
+        if (archivoExiste(tempFile))
+        {
+            std::ifstream archivo(tempFile);
+            std::getline(archivo, contenido);
+            archivo.close();
+        }
+        crearDirectorioSiNoExiste(rutaLog());
+        std::ofstream log(rutaLog(), std::ios::app);
+        log << "Error al consultar SQL. Codigo: " << resultado << " - SQL: " << sql << std::endl;
+        log << "Comando ejecutado: " << cmd << std::endl;
+        if (!contenido.empty())
+            log << "Salida mysql: " << contenido << std::endl;
+    }
     
     if (archivoExiste(tempFile))
         std::remove(tempFile.c_str());
@@ -247,7 +467,8 @@ bool ConexionDB::inicializar()
     if (conectada && !esquemaPreparado)
     {
         auto tablasBase = consultar("SHOW TABLES LIKE 'vuelos'");
-        if (tablasBase.empty() && archivoExiste("database\\aerolinea.sql"))
+        std::string archivoSql = rutaProyectoArchivo("database\\aerolinea.sql");
+        if (tablasBase.empty() && archivoExiste(archivoSql))
         {
             std::stringstream importar;
             importar << "\"" << mysqlExe << "\" --default-character-set=" << dbCharset;
@@ -258,13 +479,15 @@ bool ConexionDB::inicializar()
             if (!dbPassword.empty())
                 importar << " --password=\"" << dbPassword << "\"";
             importar << " --database=" << nombreBase;
-            importar << " < \"database\\aerolinea.sql\"";
+            importar << " < \"" << archivoSql << "\"";
             int resultadoImportacion = std::system(importar.str().c_str());
             if (resultadoImportacion != 0)
             {
-                std::ofstream log("logs/conexion_aerogest.log", std::ios::app);
-                log << "No se pudo importar database/aerolinea.sql. Codigo: " << resultadoImportacion << std::endl;
+                crearDirectorioSiNoExiste(rutaLog());
+                std::ofstream log(rutaLog(), std::ios::app);
+                log << "No se pudo importar " << archivoSql << ". Codigo: " << resultadoImportacion << std::endl;
                 log << "Comando: " << importar.str() << std::endl;
+                log << "Nota: Verifique que MySQL este ejecutandose y que el archivo SQL exista." << std::endl;
             }
         }
 

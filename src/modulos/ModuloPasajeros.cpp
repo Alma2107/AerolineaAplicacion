@@ -31,6 +31,39 @@ static void alternarId(std::vector<int> &valores, int id)
         valores.erase(it);
 }
 
+static int cantidadSeleccionada(const std::vector<int> &valores, const std::vector<int> &cantidades, int id)
+{
+    for (int i = 0; i < (int)valores.size(); ++i)
+        if (valores[i] == id)
+            return cantidades[i];
+    return 0;
+}
+
+static void establecerCantidadSeleccionada(std::vector<int> &valores, std::vector<int> &cantidades, int id, int cantidad)
+{
+    for (int i = 0; i < (int)valores.size(); ++i)
+    {
+        if (valores[i] == id)
+        {
+            if (cantidad <= 0)
+            {
+                valores.erase(valores.begin() + i);
+                cantidades.erase(cantidades.begin() + i);
+            }
+            else
+            {
+                cantidades[i] = cantidad;
+            }
+            return;
+        }
+    }
+    if (cantidad > 0)
+    {
+        valores.push_back(id);
+        cantidades.push_back(cantidad);
+    }
+}
+
 static double precioSeleccionado(const std::vector<CatalogoItem> &items, int id)
 {
     for (const CatalogoItem &item : items)
@@ -107,7 +140,8 @@ void ModuloPasajeros::dibujarNavegacion()
     }
 }
 
-void ModuloPasajeros::dibujarCheckIn()`r`n{
+void ModuloPasajeros::dibujarCheckIn()
+{
     DrawText("Check-in por codigo de reserva", 240, 95, 30, UI::navy());
     DrawText("Ingrese el codigo de reserva para registrar el check-in", 240, 130, 17, UI::muted());
 
@@ -194,32 +228,99 @@ void ModuloPasajeros::dibujarNuevaReserva()
         DrawText("Complete el tramo complementario luego de guardar este tramo.", 860, 402, 14, UI::muted());
     }
 
-        if (UI::input(Rectangle{255, 430, 120, 42}, "ID cliente", idCliente, foco == 9))
+    if (UI::input(Rectangle{255, 430, 120, 42}, "ID cliente", idCliente, foco == 9))
         foco = 9;
-    if (UI::input(Rectangle{395, 430, 120, 42}, "ID vuelo", idVuelo, foco == 10))
-        foco = 10;
+
+    DrawText("Seleccionar vuelo", 395, 430, 16, UI::muted());
+    int vueloX = 395;
+    int vueloY = 456;
+    for (int i = 0; i < (int)vuelosCache.size() && i < 4; ++i)
+    {
+        const CatalogoItem &vuelo = vuelosCache[i];
+        std::stringstream label;
+        label << vuelo.nombre << " ($" << (int)vuelo.precio << ")";
+        Rectangle opcion = {(float)vueloX, (float)vueloY, 340, 30};
+        bool seleccionado = std::to_string(vuelo.id) == idVuelo;
+        if (UI::botonSecundario(opcion, label.str(), seleccionado ? UI::green() : UI::muted()))
+        {
+            idVuelo = std::to_string(vuelo.id);
+            precio = std::to_string((int)vuelo.precio);
+        }
+        vueloY += 36;
+    }
+
     if (UI::input(Rectangle{535, 430, 120, 42}, "Asiento", asiento, foco == 11))
         foco = 11;
-    if (UI::input(Rectangle{675, 430, 120, 42}, "ID plan", idPlan, foco == 12))
-        foco = 12;
+
+    DrawText("Seleccionar plan", 675, 430, 16, UI::muted());
+    int planX = 675;
+    int planY = 456;
+    for (int i = 0; i < (int)planesCache.size() && i < 4; ++i)
+    {
+        const CatalogoItem &plan = planesCache[i];
+        std::stringstream label;
+        label << plan.nombre << " ($" << (int)plan.precio << ")";
+        Rectangle opcion = {(float)planX, (float)planY, 320, 30};
+        if (UI::botonSecundario(opcion, label.str(), std::to_string(plan.id) == idPlan ? UI::green() : UI::muted()))
+            idPlan = std::to_string(plan.id);
+        planY += 36;
+    }
+
     if (UI::input(Rectangle{815, 430, 145, 42}, "Precio base", precio, foco == 15))
         foco = 15;
     DrawRectangleRounded(Rectangle{235, 505, 1000, 130}, 0.035f, 8, WHITE);
     DrawRectangleLinesEx(Rectangle{235, 505, 1000, 130}, 1, UI::border());
     DrawRectangleRounded(Rectangle{235, 505, 8, 130}, 0.035f, 8, UI::green());
 
-    DrawText("Equipaje adicional", 255, 520, 16, UI::muted());
-    if (UI::input(Rectangle{255, 550, 130, 42}, "ID tipo", idTipoEquipaje, foco == 16))
-        foco = 16;
-    if (UI::input(Rectangle{405, 550, 110, 42}, "Cantidad", cantidadEquipaje, foco == 17))
-        foco = 17;
-    if (UI::input(Rectangle{535, 550, 130, 42}, "Precio eq.", precioEquipaje, foco == 18))
-        foco = 18;
-    DrawText("Servicios", 705, 520, 16, UI::muted());
-    if (UI::input(Rectangle{705, 550, 130, 42}, "ID servicio", idServicio, foco == 19))
-        foco = 19;
-    if (UI::input(Rectangle{855, 550, 130, 42}, "Precio serv.", precioServicio, foco == 20))
-        foco = 20;
+    DrawText("Tipos de equipaje", 255, 520, 16, UI::muted());
+    int equipX = 255;
+    int equipY = 540;
+    for (int i = 0; i < (int)tiposEquipajeCache.size() && i < 4; ++i)
+    {
+        const CatalogoItem &tipo = tiposEquipajeCache[i];
+        bool seleccionado = contieneId(equipajesSeleccionados, tipo.id);
+        std::stringstream label;
+        label << tipo.nombre << " ($" << (int)tipo.precio << ")";
+        Rectangle opcion = {(float)equipX, (float)equipY, 260, 30};
+        if (UI::botonSecundario(opcion, label.str(), seleccionado ? UI::green() : UI::muted()))
+        {
+            if (seleccionado)
+                establecerCantidadSeleccionada(equipajesSeleccionados, cantidadesEquipajeSeleccionadas, tipo.id, 0);
+            else
+                establecerCantidadSeleccionada(equipajesSeleccionados, cantidadesEquipajeSeleccionadas, tipo.id, 1);
+        }
+        if (seleccionado)
+        {
+            int actual = cantidadSeleccionada(equipajesSeleccionados, cantidadesEquipajeSeleccionadas, tipo.id);
+            std::stringstream cantidadTexto;
+            cantidadTexto << "x" << actual;
+            DrawText(cantidadTexto.str().c_str(), equipX + 190, equipY + 6, 15, UI::navy());
+            Rectangle menos = {(float)equipX + 220, (float)equipY, 24, 30};
+            Rectangle mas = {(float)equipX + 250, (float)equipY, 24, 30};
+            if (UI::botonSecundario(menos, "-", UI::muted()))
+                establecerCantidadSeleccionada(equipajesSeleccionados, cantidadesEquipajeSeleccionadas, tipo.id, actual - 1);
+            if (UI::botonSecundario(mas, "+", UI::muted()))
+                establecerCantidadSeleccionada(equipajesSeleccionados, cantidadesEquipajeSeleccionadas, tipo.id, actual + 1);
+        }
+        equipY += 38;
+    }
+
+    DrawText("Servicios adicionales", 705, 520, 16, UI::muted());
+    int servX = 705;
+    int servY = 540;
+    for (int i = 0; i < (int)serviciosCache.size() && i < 4; ++i)
+    {
+        const CatalogoItem &servicio = serviciosCache[i];
+        bool seleccionado = contieneId(serviciosSeleccionados, servicio.id);
+        std::stringstream label;
+        label << servicio.nombre << " ($" << (int)servicio.precio << ")";
+        Rectangle opcion = {(float)servX, (float)servY, 260, 30};
+        if (UI::botonSecundario(opcion, label.str(), seleccionado ? UI::green() : UI::muted()))
+        {
+            alternarId(serviciosSeleccionados, servicio.id);
+        }
+        servY += 38;
+    }
     if (foco == 2)
         UI::capturarTexto(tipoDoc, 12);
     if (foco == 3)
@@ -261,7 +362,8 @@ void ModuloPasajeros::dibujarNuevaReserva()
         mensaje = reservaDAO.validarReservaPresencial(
             pasajero, ConexionDB::convertirEntero(idCliente), ConexionDB::convertirEntero(idVuelo),
             asiento, ConexionDB::convertirEntero(idPlan), codigoTemporal, ConexionDB::convertirDouble(precio),
-            ConexionDB::convertirEntero(idMetodoPago));
+            ConexionDB::convertirEntero(idMetodoPago), equipajesSeleccionados,
+            cantidadesEquipajeSeleccionadas, serviciosSeleccionados);
         if (mensaje == "OK")
             mensaje = "Validacion API BD: reserva apta para guardar.";
         else
@@ -277,7 +379,8 @@ void ModuloPasajeros::dibujarNuevaReserva()
         std::string validacion = reservaDAO.validarReservaPresencial(
             pasajero, ConexionDB::convertirEntero(idCliente), ConexionDB::convertirEntero(idVuelo),
             asiento, ConexionDB::convertirEntero(idPlan), codigoTemporal, ConexionDB::convertirDouble(precio),
-            ConexionDB::convertirEntero(idMetodoPago));
+            ConexionDB::convertirEntero(idMetodoPago), equipajesSeleccionados,
+            cantidadesEquipajeSeleccionadas, serviciosSeleccionados);
         if (validacion != "OK")
         {
             mensaje = "Validacion API BD: " + validacion;
@@ -286,10 +389,8 @@ void ModuloPasajeros::dibujarNuevaReserva()
         }
         Reserva reserva = reservaDAO.crearReservaPresencial(
             pasajero, ConexionDB::convertirEntero(idCliente), ConexionDB::convertirEntero(idVuelo),
-            asiento, ConexionDB::convertirEntero(idPlan), codigoTemporal, ConexionDB::convertirDouble(precio),
-            ConexionDB::convertirEntero(idMetodoPago), ConexionDB::convertirEntero(idTipoEquipaje),
-            ConexionDB::convertirEntero(cantidadEquipaje, 1), ConexionDB::convertirDouble(precioEquipaje),
-            ConexionDB::convertirEntero(idServicio), ConexionDB::convertirDouble(precioServicio));
+            asiento, ConexionDB::convertirEntero(idPlan), ConexionDB::convertirEntero(idMetodoPago),
+            equipajesSeleccionados, cantidadesEquipajeSeleccionadas, serviciosSeleccionados);
         mensaje = reserva.getIdTicket() != 0 ? "Reserva guardada en BD con codigo " + reserva.getCodigoReserva() : "No se pudo guardar la reserva.";
         if (reserva.getIdTicket() != 0)
         {
@@ -301,8 +402,12 @@ void ModuloPasajeros::dibujarNuevaReserva()
     }
 
     double total = ConexionDB::convertirDouble(precio) + precioSeleccionado(planesCache, ConexionDB::convertirEntero(idPlan));
-    for (int id : equipajesSeleccionados)
-        total += precioSeleccionado(tiposEquipajeCache, id);
+    for (int i = 0; i < (int)equipajesSeleccionados.size(); ++i)
+    {
+        int id = equipajesSeleccionados[i];
+        int cantidad = cantidadSeleccionada(equipajesSeleccionados, cantidadesEquipajeSeleccionadas, id);
+        total += precioSeleccionado(tiposEquipajeCache, id) * std::max(1, cantidad);
+    }
     for (int id : serviciosSeleccionados)
         total += precioSeleccionado(serviciosCache, id);
     std::stringstream totalTexto;

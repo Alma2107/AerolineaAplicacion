@@ -36,6 +36,12 @@ public:
                                          int idMetodoPago, int idTipoEquipaje = 0,
                                          int cantidadEquipaje = 0, double precioEquipaje = 0,
                                          int idServicio = 0, double precioServicio = 0) const;
+    std::string validarReservaPresencial(const Pasajero &pasajero, int idCliente, int idVuelo,
+                                         const std::string &asiento, int idPlan,
+                                         const std::string &codigoReserva, double precio,
+                                         int idMetodoPago, const std::vector<int> &tiposEquipaje,
+                                         const std::vector<int> &cantidadesEquipaje,
+                                         const std::vector<int> &servicios) const;
     Reserva crearReservaPresencial(const Pasajero &pasajero, int idCliente, int idVuelo,
                                    const std::string &asiento, int idPlan,
                                    const std::string &codigoReserva, double precio,

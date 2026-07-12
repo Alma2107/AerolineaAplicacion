@@ -60,23 +60,56 @@ void ModuloEquipaje::dibujarRegistrar()
 {
     DrawText("Registrar equipaje", 240, 95, 30, UI::navy());
     DrawText("El ticket de equipaje se genera automaticamente al guardar", 240, 130, 17, UI::muted());
-    if (UI::input(Rectangle{240, 200, 170, 46}, "Ticket reserva", idTicket, foco == 1))
-        foco = 1;
-    if (UI::input(Rectangle{440, 200, 170, 46}, "Tipo equipaje", idTipo, foco == 2))
-        foco = 2;
+
+    DrawText("Seleccionar ticket de reserva", 240, 170, 16, UI::muted());
+    int ticketX = 240;
+    int ticketY = 200;
+    for (int i = 0; i < (int)ticketsCache.size() && i < 4; ++i)
+    {
+        const CatalogoItem &ticket = ticketsCache[i];
+        Rectangle opcion = {(float)ticketX, (float)ticketY, 340, 34};
+        bool seleccionado = std::to_string(ticket.id) == idTicket;
+        if (UI::botonSecundario(opcion, ticket.nombre, seleccionado ? UI::green() : UI::muted()))
+            idTicket = std::to_string(ticket.id);
+        ticketY += 40;
+    }
+    if (ticketsCache.empty())
+    {
+        DrawText("No hay reservas con ticket disponible. Registre primero una reserva.", 240, 245, 15, RED);
+    }
+
+    DrawText("Seleccionar tipo de equipaje", 240, 290, 16, UI::muted());
+    int tipoX = 240;
+    int tipoY = 320;
+    for (int i = 0; i < (int)tiposEquipajeCache.size() && i < 4; ++i)
+    {
+        const CatalogoItem &tipo = tiposEquipajeCache[i];
+        Rectangle opcion = {(float)tipoX, (float)tipoY, 340, 34};
+        bool seleccionado = std::to_string(tipo.id) == idTipo;
+        std::stringstream label;
+        label << tipo.nombre << " ($" << (int)tipo.precio << ")";
+        if (UI::botonSecundario(opcion, label.str(), seleccionado ? UI::green() : UI::muted()))
+        {
+            idTipo = std::to_string(tipo.id);
+            precio = std::to_string((int)tipo.precio);
+        }
+        tipoY += 40;
+    }
+    if (tiposEquipajeCache.empty())
+    {
+        DrawText("No hay tipos de equipaje cargados en la base de datos.", 240, 365, 15, RED);
+    }
+
     if (UI::input(Rectangle{640, 200, 160, 46}, "Peso kg", peso, foco == 3))
         foco = 3;
     if (UI::input(Rectangle{830, 200, 160, 46}, "Precio", precio, foco == 4))
         foco = 4;
-    if (foco == 1)
-        UI::capturarTexto(idTicket, 8);
-    if (foco == 2)
-        UI::capturarTexto(idTipo, 8);
     if (foco == 3)
         UI::capturarTexto(peso, 8);
     if (foco == 4)
         UI::capturarTexto(precio, 12);
-    if (UI::boton(Rectangle{240, 305, 210, 44}, "Registrar equipaje", UI::purple()))
+
+    if (UI::boton(Rectangle{240, 420, 210, 44}, "Registrar equipaje", UI::purple()))
     {
         Equipaje equipaje = equipajeDAO.registrar(ConexionDB::convertirEntero(idTicket), ConexionDB::convertirEntero(idTipo),
                                                   ConexionDB::convertirDouble(peso), ConexionDB::convertirDouble(precio));
@@ -87,7 +120,7 @@ void ModuloEquipaje::dibujarRegistrar()
             refrescarDatos();
         }
     }
-    DrawText(mensaje.c_str(), 240, 390, 19, UI::green());
+    DrawText(mensaje.c_str(), 240, 480, 19, UI::green());
 }
 void ModuloEquipaje::dibujarRastrear()
 {

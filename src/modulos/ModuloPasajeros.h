@@ -51,6 +51,7 @@ private:
     std::vector<CatalogoItem> serviciosCache;
     std::vector<std::string> asientosCache;
     std::vector<int> equipajesSeleccionados;
+    std::vector<int> cantidadesEquipajeSeleccionadas;
     std::vector<int> serviciosSeleccionados;
 
     void dibujarNavegacion();
