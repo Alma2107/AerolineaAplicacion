@@ -360,39 +360,20 @@ bool ConexionDB::ejecutar(const std::string &sql) const
     if (!comandoDisponible(mysqlExe))
         return false;
 
-    std::string tempFile = rutaTemp("temp_exec.txt");
-    std::string sqlLimpio = sql;
-    for (char &c : sqlLimpio)
-    {
-        if (c == '"')
-            c = '\'';
-        if (c == '\n' || c == '\r')
-            c = ' ';
-    }
-    std::string cmd = comandoMysql(sqlLimpio, true) + " > \"" + tempFile + "\" 2>&1";
-    int resultado = std::system(cmd.c_str());
+    std::string salida;
+    std::string hostReal = dbHost == "localhost" ? "127.0.0.1" : dbHost;
+    int resultado = ejecutarMysqlConStdin(mysqlExe, hostReal, dbPort, dbUsuario, dbPassword,
+                                          dbCharset, sql, true, nombreBase, salida);
     
     bool ok = (resultado == 0);
     if (!ok)
     {
-        std::string contenido;
-        if (archivoExiste(tempFile))
-        {
-            std::ifstream archivo(tempFile);
-            std::getline(archivo, contenido);
-            archivo.close();
-        }
         crearDirectorioSiNoExiste(rutaLog());
         std::ofstream log(rutaLog(), std::ios::app);
         log << "Error al ejecutar SQL. Codigo: " << resultado << " - SQL: " << sql << std::endl;
-        log << "Comando ejecutado: " << cmd << std::endl;
-        if (!contenido.empty())
-            log << "Salida mysql: " << contenido << std::endl;
+        if (!salida.empty())
+            log << "Salida mysql: " << salida << std::endl;
     }
-    
-    if (archivoExiste(tempFile))
-        std::remove(tempFile.c_str());
-    
     return ok;
 }
 
@@ -402,22 +383,16 @@ std::vector<std::vector<std::string>> ConexionDB::consultar(const std::string &s
     if (!comandoDisponible(mysqlExe))
         return filas;
 
-    std::string tempFile = rutaTemp("temp_query.txt");
-    std::string sqlLimpio = sql;
-    for (char &c : sqlLimpio)
-    {
-        if (c == '"')
-            c = '\'';
-    }
+    std::string salida;
+    std::string hostReal = dbHost == "localhost" ? "127.0.0.1" : dbHost;
+    int resultado = ejecutarMysqlConStdin(mysqlExe, hostReal, dbPort, dbUsuario, dbPassword,
+                                          dbCharset, sql, true, nombreBase, salida);
     
-    std::string cmd = comandoMysql(sqlLimpio, true) + " > \"" + tempFile + "\" 2>&1";
-    int resultado = std::system(cmd.c_str());
-    
-    if (resultado == 0 && archivoExiste(tempFile))
+    if (resultado == 0)
     {
-        std::ifstream archivo(tempFile);
         std::string linea;
-        while (std::getline(archivo, linea))
+        std::stringstream resultadoSql(salida);
+        while (std::getline(resultadoSql, linea))
         {
             std::vector<std::string> columnas;
             std::stringstream ss(linea);
@@ -427,27 +402,15 @@ std::vector<std::vector<std::string>> ConexionDB::consultar(const std::string &s
             if (!linea.empty())
                 filas.push_back(columnas);
         }
-        archivo.close();
     }
     else if (resultado != 0)
     {
-        std::string contenido;
-        if (archivoExiste(tempFile))
-        {
-            std::ifstream archivo(tempFile);
-            std::getline(archivo, contenido);
-            archivo.close();
-        }
         crearDirectorioSiNoExiste(rutaLog());
         std::ofstream log(rutaLog(), std::ios::app);
         log << "Error al consultar SQL. Codigo: " << resultado << " - SQL: " << sql << std::endl;
-        log << "Comando ejecutado: " << cmd << std::endl;
-        if (!contenido.empty())
-            log << "Salida mysql: " << contenido << std::endl;
+        if (!salida.empty())
+            log << "Salida mysql: " << salida << std::endl;
     }
-    
-    if (archivoExiste(tempFile))
-        std::remove(tempFile.c_str());
 
     return filas;
 }
@@ -459,8 +422,11 @@ bool ConexionDB::inicializar()
     if (!conectar())
         return false;
 
-    std::string crearDb = comandoMysql("CREATE DATABASE IF NOT EXISTS " + nombreBase + " CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci", false) + " >nul 2>&1";
-    if (std::system(crearDb.c_str()) != 0)
+    std::string salida;
+    std::string hostReal = dbHost == "localhost" ? "127.0.0.1" : dbHost;
+    if (ejecutarMysqlConStdin(mysqlExe, hostReal, dbPort, dbUsuario, dbPassword, dbCharset,
+                              "CREATE DATABASE IF NOT EXISTS `" + nombreBase + "` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci",
+                              false, nombreBase, salida) != 0)
         return false;
 
     conectada = ejecutar("SELECT 1");
@@ -470,23 +436,18 @@ bool ConexionDB::inicializar()
         std::string archivoSql = rutaProyectoArchivo("database\\aerolinea.sql");
         if (tablasBase.empty() && archivoExiste(archivoSql))
         {
-            std::stringstream importar;
-            importar << "\"" << mysqlExe << "\" --default-character-set=" << dbCharset;
-            if (dbHost != "localhost")
-                importar << " --protocol=tcp";
-            importar << " -h " << dbHost << " -P " << dbPort;
-            importar << " -u " << dbUsuario;
-            if (!dbPassword.empty())
-                importar << " --password=\"" << dbPassword << "\"";
-            importar << " --database=" << nombreBase;
-            importar << " < \"" << archivoSql << "\"";
-            int resultadoImportacion = std::system(importar.str().c_str());
+            std::ifstream archivo(archivoSql, std::ios::binary);
+            std::stringstream contenidoSql;
+            contenidoSql << archivo.rdbuf();
+            int resultadoImportacion = ejecutarMysqlConStdin(mysqlExe, hostReal, dbPort, dbUsuario, dbPassword,
+                                                              dbCharset, contenidoSql.str(), true, nombreBase, salida);
             if (resultadoImportacion != 0)
             {
                 crearDirectorioSiNoExiste(rutaLog());
                 std::ofstream log(rutaLog(), std::ios::app);
                 log << "No se pudo importar " << archivoSql << ". Codigo: " << resultadoImportacion << std::endl;
-                log << "Comando: " << importar.str() << std::endl;
+                if (!salida.empty())
+                    log << "Salida mysql: " << salida << std::endl;
                 log << "Nota: Verifique que MySQL este ejecutandose y que el archivo SQL exista." << std::endl;
             }
         }
