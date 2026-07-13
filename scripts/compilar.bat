@@ -71,7 +71,7 @@ set "TMP=%OUT_DIR%\tmp"
 set "TEMP=%OUT_DIR%\tmp"
 if not exist "%TMP%" mkdir "%TMP%"
 if exist "%OBJ_DIR%\*.o" del /q "%OBJ_DIR%\*.o"
-set "EXE_OUT=%OUT_DIR%\aerolinea_actualizado.exe"
+set "EXE_OUT=%BASE%\aerolinea_actualizado.exe"
 if exist "%EXE_OUT%" del /q "%EXE_OUT%"
 set "COMPILE_LOG=%OUT_DIR%\compile_errors.log"
 if exist "%COMPILE_LOG%" del /q "%COMPILE_LOG%"
@@ -103,9 +103,9 @@ for %%o in ("%OBJ_DIR%\*.o") do set OBJLIST=!OBJLIST! "%%~fo"
 "%GPP%" %OBJLIST% -o "%EXE_OUT%" -L"%RAYLIB_LIB%" -lraylib -lopengl32 -lgdi32 -lwinmm -lws2_32 -lshell32 -Wl,--subsystem,windows > "%COMPILE_LOG%" 2>&1
 
 if exist "%EXE_OUT%" (
-    if exist "%RAYLIB_LIB%\raylib.dll" copy /y "%RAYLIB_LIB%\raylib.dll" "%OUT_DIR%\raylib.dll" >nul
-    if exist "%RAYLIB_LIB%\..\bin\libraylib.dll" copy /y "%RAYLIB_LIB%\..\bin\libraylib.dll" "%OUT_DIR%\libraylib.dll" >nul
-    if exist "%OUT_DIR%\libraylib.dll" copy /y "%OUT_DIR%\libraylib.dll" "%OUT_DIR%\raylib.dll" >nul
+    if exist "%RAYLIB_LIB%\raylib.dll" copy /y "%RAYLIB_LIB%\raylib.dll" "%BASE%\raylib.dll" >nul
+    if exist "%RAYLIB_LIB%\..\bin\libraylib.dll" copy /y "%RAYLIB_LIB%\..\bin\libraylib.dll" "%BASE%\libraylib.dll" >nul
+    if exist "%BASE%\libraylib.dll" copy /y "%BASE%\libraylib.dll" "%BASE%\raylib.dll" >nul
     echo Compilacion correcta: %EXE_OUT%
 ) else (
     echo Hubo errores de compilacion.

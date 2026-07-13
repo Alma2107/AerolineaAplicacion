@@ -12,6 +12,15 @@ private:
     std::string mensaje;
     bool escribiendoUsuario;
     bool dbLista;
+    bool mostrandoConfig;
+    std::string dbHost;
+    std::string dbPort;
+    std::string dbUser;
+    std::string dbPass;
+    bool focoHost;
+    bool focoPort;
+    bool focoUser;
+    bool focoPass;
     int moduloParaAbrir;
 
     void dibujarMenu();
@@ -24,6 +33,8 @@ private:
 public:
     MenuPrincipal();
     void ejecutar();
+    void dibujarConfig();
+    void guardarConfig();
 };
 
 #endif

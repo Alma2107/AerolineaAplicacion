@@ -33,6 +33,7 @@ public:
     static std::string escapar(const std::string &valor);
     static int convertirEntero(const std::string &valor, int defecto = 0);
     static double convertirDouble(const std::string &valor, double defecto = 0);
+    static std::string detectarMysqlExe();
 };
 
 #endif

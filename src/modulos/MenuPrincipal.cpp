@@ -7,17 +7,21 @@
 #include "../dao/ConexionDB.h"
 #include "../dao/EmpleadoDAO.h"
 #include "raylib.h"
+#include <fstream>
 
 MenuPrincipal::MenuPrincipal()
-    : moduloSeleccionado(0), usuario(""), password(""), mensaje(""), escribiendoUsuario(true), dbLista(false), moduloParaAbrir(0)
+    : moduloSeleccionado(0), usuario(""), password(""), mensaje(""), escribiendoUsuario(true), dbLista(false), mostrandoConfig(false), dbHost("127.0.0.1"), dbPort("3306"), dbUser("root"), dbPass(""), focoHost(false), focoPort(false), focoUser(false), focoPass(false), moduloParaAbrir(0)
 {
+    // Asegurar que la ruta a mysql.exe se guarde en config\db.ini antes de inicializar la BD
+    guardarConfig();
     ConexionDB db;
     dbLista = db.inicializar();
     if (dbLista)
         dbLista = !db.consultar("SELECT COUNT(*) FROM vuelos").empty();
     if (!dbLista)
-        mensaje = "No se pudo conectar a XAMPP/base aerolinea. Revise conexion_aerogest.log.";
+        mensaje = "No se pudo conectar a XAMPP/base aerolinea. Abra Configuracion BD.";
 }
+
 
 void MenuPrincipal::capturarTexto(std::string &texto, bool ocultar)
 {
@@ -125,8 +129,116 @@ void MenuPrincipal::dibujarMenu()
     DrawText("lista para despacho", cardXRight + 24, cardYTop + 55, 14, Fade(WHITE, 0.86f));
     UI::aviso(Rectangle{cardXRight, cardYBottom, cardW, 75}, dbLista ? "Base de datos conectada" : "Base de datos sin conexion",
               dbLista ? "Los modulos guardan, actualizan y eliminan datos en MariaDB." : mensaje, dbLista ? UI::green() : RED);
+
+    if (!dbLista)
+    {
+        if (UI::botonSecundario(Rectangle{cardXRight + 24, cardYBottom + 90, 180, 36}, "Configurar BD", UI::purple()))
+            mostrandoConfig = true;
+    }
     DrawText("Usuarios: vuelos/vuelos123 | pasajeros/pasajeros123 | equipaje/equipaje123 | mantenimiento/mantenimiento123",
              contentX, alto - 30, 13, UI::muted());
+}
+
+void MenuPrincipal::dibujarConfig()
+{
+    ClearBackground(Color{230, 230, 230, 255});
+    DrawText("Configuracion de Base de Datos", 420, 40, 24, UI::navy());
+
+    Rectangle hostRect = {360, 120, 540, 40};
+    Rectangle portRect = {360, 180, 200, 40};
+    Rectangle userRect = {360, 240, 260, 40};
+    Rectangle passRect = {360, 300, 300, 40};
+
+    DrawText("Host:", 300, 130, 18, UI::muted());
+    DrawRectangleRounded(hostRect, 0.04f, 6, WHITE);
+    UI::textoRecortado(dbHost, (int)hostRect.x + 10, (int)hostRect.y + 10, 18, DARKGRAY, 40);
+
+    DrawText("Puerto:", 300, 190, 18, UI::muted());
+    DrawRectangleRounded(portRect, 0.04f, 6, WHITE);
+    UI::textoRecortado(dbPort, (int)portRect.x + 10, (int)portRect.y + 10, 18, DARKGRAY, 10);
+
+    DrawText("Usuario:", 300, 250, 18, UI::muted());
+    DrawRectangleRounded(userRect, 0.04f, 6, WHITE);
+    UI::textoRecortado(dbUser, (int)userRect.x + 10, (int)userRect.y + 10, 18, DARKGRAY, 32);
+
+    DrawText("Password:", 300, 310, 18, UI::muted());
+    DrawRectangleRounded(passRect, 0.04f, 6, WHITE);
+    UI::textoRecortado(std::string(dbPass.size(), '*'), (int)passRect.x + 10, (int)passRect.y + 10, 18, DARKGRAY, 32);
+
+    if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+    {
+        Vector2 mouse = GetMousePosition();
+        focoHost = CheckCollisionPointRec(mouse, hostRect);
+        focoPort = CheckCollisionPointRec(mouse, portRect);
+        focoUser = CheckCollisionPointRec(mouse, userRect);
+        focoPass = CheckCollisionPointRec(mouse, passRect);
+    }
+
+    if (focoHost)
+        capturarTexto(dbHost, false);
+    if (focoPort)
+        capturarTexto(dbPort, false);
+    if (focoUser)
+        capturarTexto(dbUser, false);
+    if (focoPass)
+        capturarTexto(dbPass, true);
+
+    if (UI::boton(Rectangle{360, 380, 180, 40}, "Probar conexion", UI::green()))
+    {
+        // Guardar temporalmente y probar
+        guardarConfig();
+        ConexionDB db;
+        if (db.inicializar())
+        {
+            dbLista = true;
+            mostrandoConfig = false;
+            mensaje = "Conectado correctamente";
+        }
+        else
+        {
+            mensaje = "Fallo la conexion. Verifique MySQL y credenciales.";
+        }
+    }
+
+    if (UI::botonSecundario(Rectangle{560, 380, 180, 40}, "Guardar y cerrar", UI::blue()))
+    {
+        guardarConfig();
+        mostrandoConfig = false;
+    }
+
+    if (UI::botonSecundario(Rectangle{760, 380, 140, 40}, "Cancelar", UI::orange()))
+    {
+        mostrandoConfig = false;
+    }
+
+    DrawText(mensaje.c_str(), 360, 440, 18, RED);
+}
+
+void MenuPrincipal::guardarConfig()
+{
+    try
+    {
+        std::ofstream cfg("config\\db.ini", std::ios::trunc);
+        if (!cfg.is_open())
+        {
+            mensaje = "No se pudo abrir config\\db.ini para guardar.";
+            return;
+        }
+        cfg << "MYSQL_HOST=" << dbHost << "\n";
+        cfg << "MYSQL_PORT=" << dbPort << "\n";
+        cfg << "MYSQL_USER=" << dbUser << "\n";
+        cfg << "MYSQL_PASSWORD=" << dbPass << "\n";
+        cfg << "MYSQL_DATABASE=aerolinea\n";
+        cfg << "MYSQL_CHARSET=utf8mb4\n";
+        // Guardar ruta a mysql.exe detectada para asegurar que el cliente esté disponible
+        cfg << "MYSQL_EXE=" << ConexionDB::detectarMysqlExe() << "\n";
+        cfg.close();
+        mensaje = "Configuracion guardada en config\\db.ini";
+    }
+    catch (...)
+    {
+        mensaje = "Error al guardar config\\db.ini";
+    }
 }
 
 void MenuPrincipal::dibujarLogin()
@@ -227,7 +339,9 @@ void MenuPrincipal::ejecutar()
         BeginDrawing();
         ClearBackground(RAYWHITE);
 
-        if (moduloSeleccionado == 0)
+        if (mostrandoConfig)
+            dibujarConfig();
+        else if (moduloSeleccionado == 0)
             dibujarMenu();
         else
             dibujarLogin();
